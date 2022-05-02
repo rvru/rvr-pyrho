@@ -29,20 +29,13 @@ def create_sheet(name):
     formula = '=HYPERLINK("#Summary!A1", "Return to Summary")'
     wksheet.write_formula('A1', formula, excel.header_format)
     # Format column sizes
-    col_sizes = {  # IAR table
+    col_sizes = {
                  0: 30, 1: 20, 2: 20, 3: 20, 4: 50,
-                 5: 20,
-                   # RVGCC table
-                 6: 30, 7: 20, 8: 20, 9: 20, 10: 50,
-                 11: 20
+                 5: 20
                  }
     for col in col_sizes:
         wksheet.set_column(col, col, col_sizes[col])
 
-    # 'RISC-V (IAR) [Save or Restore] Totals'
-    add_riscv_totals_table(wksheet, 'IAR', name)
-    # 'save_12 (IAR)', etc.
-    add_riscv_tables(wksheet, 'IAR', name)
     # 'RISC-V (RVGCC) [Save or Restore] Totals'
     add_riscv_totals_table(wksheet, 'RVGCC', name)
     # 'save_12 (RVGCC)', etc.
@@ -64,13 +57,15 @@ def add_riscv_totals_table(wksheet, compiler, func):
         elif (func == '__riscv_restore'):
             table = RESTORE_IAR_TOTALS_TABLE
     elif (compiler == 'RVGCC'):
+        row = 2
+        col = 0
         if (func == '__riscv_save'):
-            row = excel.get_table_loc(SAVE_IAR_TOTALS_TABLE)[0]
-            col = excel.get_table_loc(SAVE_IAR_A_TABLE)[3] + 2
+            # row = excel.get_table_loc(SAVE_IAR_TOTALS_TABLE)[0]
+            # col = excel.get_table_loc(SAVE_IAR_A_TABLE)[3] + 2
             table = SAVE_RVGCC_TOTALS_TABLE
         elif (func == '__riscv_restore'):
-            row = excel.get_table_loc(RESTORE_IAR_TOTALS_TABLE)[0]
-            col = excel.get_table_loc(RESTORE_IAR_A_TABLE)[3] + 2
+            # row = excel.get_table_loc(RESTORE_IAR_TOTALS_TABLE)[0]
+            # col = excel.get_table_loc(RESTORE_IAR_A_TABLE)[3] + 2
             table = RESTORE_RVGCC_TOTALS_TABLE
     headers = ['', 'Bytes']
     row_labels = ['Total']
@@ -84,21 +79,21 @@ def add_riscv_totals_table(wksheet, compiler, func):
 def add_riscv_tables(wksheet, compiler, func):
     """ Adds individual save_x or restore_x function tables. """
     if (func == '__riscv_save'):
-        row = excel.get_table_loc(SAVE_IAR_TOTALS_TABLE)[2] + 8
+        row = excel.get_table_loc(SAVE_RVGCC_TOTALS_TABLE)[2] + 8
         if (compiler == 'RVGCC'):
             col = excel.get_table_loc(SAVE_RVGCC_TOTALS_TABLE)[1]
             tables = rvgcc_save_tables
-        elif (compiler == 'IAR'):
-            col = excel.get_table_loc(SAVE_IAR_TOTALS_TABLE)[1]
-            tables = iar_save_tables
+        # elif (compiler == 'IAR'):
+        #     col = excel.get_table_loc(SAVE_IAR_TOTALS_TABLE)[1]
+        #     tables = iar_save_tables
     elif (func == '__riscv_restore'):
-        row = excel.get_table_loc(RESTORE_IAR_TOTALS_TABLE)[2] + 8
+        row = excel.get_table_loc(RESTORE_RVGCC_TOTALS_TABLE)[2] + 8
         if (compiler == 'RVGCC'):
             col = excel.get_table_loc(RESTORE_RVGCC_TOTALS_TABLE)[1]
             tables = rvgcc_restore_tables
-        elif (compiler == 'IAR'):
-            col = excel.get_table_loc(RESTORE_IAR_TOTALS_TABLE)[1]
-            tables = iar_restore_tables
+        # elif (compiler == 'IAR'):
+        #     col = excel.get_table_loc(RESTORE_IAR_TOTALS_TABLE)[1]
+        #     tables = iar_restore_tables
 
     headers = ['Address',
                'Instruction',

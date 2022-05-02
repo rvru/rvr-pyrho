@@ -193,10 +193,16 @@ class ParseRules:
         to parse.
         """
         res = None
-        if (self.compiler == 'RVGCC'):
+        if (self.compiler == 'rvgcc'):
             res = (re.search(self.FIRST_RV_FUNCTION, line) is not None) \
                 and self.is_func_start(line)
-        elif (self.compiler == 'ARM'):
+        elif (self.compiler == 'armcc'):
+            res = (re.search(self.FIRST_ARM_FUNCTION, line) is not None) \
+                and self.is_func_start(line)
+        elif (self.compiler == 'armclang'):
+            res = (re.search(self.FIRST_ARM_FUNCTION, line) is not None) \
+                and self.is_func_start(line)
+        elif (self.compiler == 'armgcc'):
             res = (re.search(self.FIRST_ARM_FUNCTION, line) is not None) \
                 and self.is_func_start(line)
         elif (self.compiler == 'IAR'):
@@ -209,10 +215,16 @@ class ParseRules:
         Returns TRUE if input line is the initialization of the last function
         to parse.
         """
-        if (self.compiler == 'RVGCC'):
+        if (self.compiler == 'rvgcc'):
             res = (re.search(self.LAST_RV_FUNCTION, line) is not None) \
                 and self.is_func_start(line)
-        elif (self.compiler == 'ARM'):
+        elif (self.compiler == 'armcc'):
+            res = (re.search(self.LAST_ARM_FUNCTION, line) is not None) \
+                and self.is_func_start(line)
+        elif (self.compiler == 'armclang'):
+            res = (re.search(self.LAST_ARM_FUNCTION, line) is not None) \
+                and self.is_func_start(line)
+        elif (self.compiler == 'armgcc'):
             res = (re.search(self.LAST_ARM_FUNCTION, line) is not None) \
                 and self.is_func_start(line)
         elif (self.compiler == 'IAR'):
@@ -273,7 +285,7 @@ class ParseRules:
         full_name = ''
         name = None
         # Choose functions to parse and generate wksheet names (<31 char)
-        if (self.compiler == 'RVGCC'):
+        if (self.compiler == 'rvgcc'):
             # Function name
             full_name = lin_split[1]
             # Exclude extra characters <>:
@@ -336,7 +348,21 @@ class ParseRules:
                 elif (full_name[0:15] == '__riscv_restore'):
                     name = '__riscv_restore'
                     excel.wksheet_names[full_name] = name
-        elif (self.compiler == 'ARM'):
+        elif (self.compiler == 'armcc'):
+            # Function name
+            full_name = lin_split[1]
+            # Exclude extra characters <>:
+            full_name = full_name[1:-2]
+            if full_name in excel.wksheet_names.keys():
+                name = excel.wksheet_names[full_name]
+        elif (self.compiler == 'armclang'):
+            # Function name
+            full_name = lin_split[1]
+            # Exclude extra characters <>:
+            full_name = full_name[1:-2]
+            if full_name in excel.wksheet_names.keys():
+                name = excel.wksheet_names[full_name]
+        elif (self.compiler == 'armgcc'):
             # Function name
             full_name = lin_split[1]
             # Exclude extra characters <>:
