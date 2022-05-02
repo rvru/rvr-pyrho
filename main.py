@@ -99,7 +99,7 @@ if filename[:5] != 'rvgcc' and filename[-15:] != 'disassembly.txt':
 # Find the corresponding arm file
 path = input_rvgcc[:(input_rvgcc.rfind('/')+1)]
 lin_split = re.split('_', filename)
-input_arm = path + 'arm'
+input_arm = path + 'armcc'
 # input_arm = path + 'armclang'
 for i in range(1, len(lin_split)):
     input_arm = input_arm + '_' + lin_split[i]
@@ -124,8 +124,11 @@ ParseRules = getattr(importlib.import_module(txt_parser), 'ParseRules')
 
 # Default to same directory as input
 if output_file is None:
-    output_file = input_rvgcc[:(input_rvgcc.rfind('/')+1)] + benchmark + \
-        '_analysis.xlsx'
+	outdir = os.path.join(os.getcwd(), 'results')
+	output_file = benchmark + '_analysis.xlsx'
+	if not os.path.isdir(outdir):
+		os.makedirs(outdir)
+		output_file = os.path.join(outdir, output_file)
 else:
     output_file = input_rvgcc[:(input_rvgcc.rfind('/')+1)] + output_file
 
