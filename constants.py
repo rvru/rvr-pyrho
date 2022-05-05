@@ -12,6 +12,7 @@ BENCHMARKS = ['WatermanBenchmark', 'fir_filter',
     'aha_mont64', 'crc32', 'cubic', 'edn', 'huffbench', 'matmult_int',
     'minver', 'nbody', 'nettle_aes', 'nettle_sha256', 'nsichneu', 'picojpeg',
     'qrduino', 'sglib_combined', 'slre', 'st', 'statemate', 'ud', 'wikisort']
+BUILDS = ['rvgcc', 'armcc', 'armclang', 'armgcc']
 
 IAR = False
 
@@ -142,6 +143,7 @@ RV32_INSTR_FORMATS = {
     'jalr':     ['I-OP'],
     'fence':    ['I-OP'],
     'fence.i':  ['I-OP'],
+    'zext.b':   ['I-OP'],
     'ecall':    ['I-ENV'],
     'ebreak':   ['I-ENV'],
     'csrrw':    ['I-CSR'],

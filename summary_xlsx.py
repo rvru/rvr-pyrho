@@ -12,28 +12,46 @@ from constants import *
 import excel
 
 
-def create_summary(rvfile, armfile):
+def create_summary(allflag, rvfile=None, armfile=None):
     """ Creates the basic Summary worksheet. """
     global wksheet
     wksheet = excel.wkbook.add_worksheet('Summary')
 
-    # Record input files
-    wksheet.write('A1', rvfile)
-    wksheet.write('A2', armfile)
+    # all benchmarks analysis
+    if allflag:
+        # Main table
+        col_sizes = {0: 8, 1: 40, 2: 20}
+        start = len(col_sizes.keys())
+        for i in range(start, start+len(BUILDS)):
+            col_sizes[i] = 20
+        # spacers
+        start = len(col_sizes.keys())
+        for i in range(start, start+2):
+            col_sizes[i] = 15
+        # RISC-V final, delta, and minus armcc table
+        start = len(col_sizes.keys())
+        n_riscv = len([i for i in BUILDS if i.find('rv') != -1])
+        for i in range(start, start+n_riscv*3):
+            col_sizes[i] = 20
+    # single benchmark analysis
+    else:
+        # Record input files
+        wksheet.write('A1', rvfile)
+        wksheet.write('A2', armfile)
 
-    # Format column sizes
-    col_sizes = {  # Main table
-                 0: 8, 1: 40, 2: 20,
-                   # RISC-V cols of main table
-                 3: 20, 4: 20, 5: 20, 6: 20,
-                   # Spacers
-                 7: 15, 8: 15,
-                   # Compressed Extension Table
-                 9: 40, 10: 20, 11: 20, 12: 20, 13: 20, 14: 20,
-                   # Charts and IAR Instructions/Instruction Pair Tables
-                 15: 40, 16: 20, 17: 30, 18: 20,
-                   # Compressed Extension Rules Table
-                 19: 40, 20: 80}
+        # Format column sizes
+        col_sizes = {  # Main table
+                     0: 8, 1: 40, 2: 20,
+                       # RISC-V cols of main table
+                     3: 20, 4: 20, 5: 20, 6: 20,
+                       # Spacers
+                     7: 15, 8: 15,
+                       # Compressed Extension Table
+                     9: 40, 10: 20, 11: 20, 12: 20, 13: 20, 14: 20,
+                       # Charts and IAR Instructions/Instruction Pair Tables
+                     15: 40, 16: 20, 17: 30, 18: 20,
+                       # Compressed Extension Rules Table
+                     19: 40, 20: 80}
     for col in col_sizes:
         wksheet.set_column(col, col, col_sizes[col])
     return wksheet
@@ -42,40 +60,45 @@ def create_summary(rvfile, armfile):
 """ Functions to add specific tables/charts to the worksheet """
 
 
-def add_main_table(row, col, rvbuild, armbuild):
+def add_main_table(row, col, allflag, rvbuild=None, armbuild=None):
     """ Adds the main table ('Function Performance (RISC-V vs. ARM)'). """
-    cols = ['Function (Click to View)',
-            armbuild,
-            rvbuild,
-            # 'IAR',
-            rvbuild + ' (final)',
-            # 'IAR (Final)',
-            rvbuild + ' delta',
-            # 'IAR Delta',
-            rvbuild + ' (final) - ' + armbuild]
-            # 'IAR (Final) - ARM']
+    if allflag:
+        cols = ['Benchmark'] + BUILDS
+    else:
+        cols = ['Function (Click to View)',
+                armbuild,
+                rvbuild,
+                # 'IAR',
+                rvbuild + ' (final)',
+                # 'IAR (Final)',
+                rvbuild + ' delta',
+                # 'IAR Delta',
+                rvbuild + ' (final) - ' + armbuild]
+                # 'IAR (Final) - ARM']
     end_row = 200   # To be updated later after data filled in
     end_col = col + len(cols) - 1
     excel.create_table(wksheet, row, col, end_row, end_col,
                        SUMMARY_MAIN_TABLE, cols, False)
 
 
-def add_totals_table(row, col, rvbuild, armbuild):
+def add_totals_table(row, col, allflag, rvbuild=None, armbuild=None):
     """ Adds the totals table ('Benchmark Performance (RISC-V vs. ARM)'). """
-    headers = ['',
-               armbuild,
-               rvbuild,
-               # 'IAR',
-               rvbuild + ' (final)',
-               # 'IAR (Final)',
-               rvbuild + ' delta',
-               # 'IAR Delta',
-               rvbuild + ' (final) - ' + armbuild]
-               # 'IAR (Final) - ARM']
-    row_labels = ['Totals (bytes)',
-                  '% of ' + armbuild,
-                  '% of ' + rvbuild]
-                  # '% of IAR']
+    if allflag:
+        headers = [''] + BUILDS
+        row_labels = ['Totals (bytes)',
+                      '% of armcc',
+                      '% of rvgcc']
+    else:
+        headers = ['',
+                   armbuild,
+                   rvbuild,
+                   rvbuild + ' (final)',
+                   rvbuild + ' delta',
+                   rvbuild + ' (final) - ' + armbuild]
+        row_labels = ['Totals (bytes)',
+                      '% of ' + armbuild,
+                      '% of ' + rvbuild]
+
     end_row = row + len(row_labels) + 2
     end_col = col + len(headers) - 1
     # Create table and add row labels
@@ -83,110 +106,80 @@ def add_totals_table(row, col, rvbuild, armbuild):
                        SUMMARY_TOTALS_TABLE, headers, True)
     excel.add_row_labels(wksheet, SUMMARY_TOTALS_TABLE, row_labels)
 
-    # Add formulas for the Totals row
-    cell = excel.get_table_cell(SUMMARY_TOTALS_TABLE, armbuild, row_labels[0])
-    excel.sum_col(wksheet, SUMMARY_MAIN_TABLE, armbuild, cell)
-    cell = excel.get_table_cell(SUMMARY_TOTALS_TABLE, rvbuild, row_labels[0])
-    excel.sum_col(wksheet, SUMMARY_MAIN_TABLE, rvbuild, cell)
-    # cell = excel.get_table_cell(SUMMARY_TOTALS_TABLE, 'IAR',
-    #                             'Totals (bytes)')
-    # excel.sum_col(wksheet, SUMMARY_MAIN_TABLE, 'IAR', cell)
+    if allflag:
+        for build in BUILDS:
+            table = SUMMARY_TOTALS_TABLE
+            # Add formulas for the Totals row
+            cell = excel.get_table_cell(table, build, 'Totals (bytes)')
+            excel.sum_col(wksheet, SUMMARY_MAIN_TABLE, build, cell)
+            # Add formulas for the % of armcc row
+            denom_cell = excel.get_table_cell(table, 'armcc', 'Totals (bytes)')
+            num_cell = excel.get_table_cell(table, build, 'Totals (bytes)')
+            dest_cell = excel.get_table_cell(table, build, '% of armcc')
+            excel.record_percentage(wksheet, num_cell, denom_cell, dest_cell, 1, False)
+            # Add formulas for the % of rvgcc row
+            denom_cell = excel.get_table_cell(table, 'rvgcc', 'Totals (bytes)')
+            num_cell = excel.get_table_cell(table, build, 'Totals (bytes)')
+            dest_cell = excel.get_table_cell(table, build, '% of rvgcc')
+            excel.record_percentage(wksheet, num_cell, denom_cell, dest_cell, 1, False)
+    else:
+        # Add formulas for the Totals row
+        cell = excel.get_table_cell(SUMMARY_TOTALS_TABLE, armbuild, row_labels[0])
+        excel.sum_col(wksheet, SUMMARY_MAIN_TABLE, armbuild, cell)
+        cell = excel.get_table_cell(SUMMARY_TOTALS_TABLE, rvbuild, row_labels[0])
+        excel.sum_col(wksheet, SUMMARY_MAIN_TABLE, rvbuild, cell)
 
-    colname = headers[3]
-    cell = excel.get_table_cell(SUMMARY_TOTALS_TABLE, colname, row_labels[0])
-    excel.sum_col(wksheet, SUMMARY_MAIN_TABLE, colname, cell)
-    # cell = excel.get_table_cell(SUMMARY_TOTALS_TABLE, 'IAR (Final)',
-    #                             'Totals (bytes)')
-    # excel.sum_col(wksheet, SUMMARY_MAIN_TABLE, 'IAR (Final)', cell)
-    colname = headers[4]
-    cell = excel.get_table_cell(SUMMARY_TOTALS_TABLE, colname, row_labels[0])
-    excel.sum_col(wksheet, SUMMARY_MAIN_TABLE, colname, cell)
-    # Conditional format RVGCC Delta total to be red/green if >/< 0
-    wksheet.conditional_format(cell, {'type': 'cell', 'criteria': '>',
-                                      'value': 0,
-                                      'format': excel.red_light_format})
-    wksheet.conditional_format(cell, {'type': 'cell', 'criteria': '<',
-                                      'value': 0,
-                                      'format': excel.green_light_format})
-    # cell = excel.get_table_cell(SUMMARY_TOTALS_TABLE, 'IAR Delta',
-    #                             'Totals (bytes)')
-    # excel.sum_col(wksheet, SUMMARY_MAIN_TABLE, 'IAR Delta', cell)
-    # # Conditional format IAR Delta total to be red/green if >/< 0
-    # wksheet.conditional_format(cell, {'type': 'cell', 'criteria': '>',
-    #                                   'value': 0,
-    #                                   'format': excel.red_light_format})
-    # wksheet.conditional_format(cell, {'type': 'cell', 'criteria': '<',
-    #                                   'value': 0,
-    #                                   'format': excel.green_light_format})
-    # Conditional format RVGCC (Final) - ARM total to be red/green if >/< 0
-    colname = headers[5]
-    cell = excel.get_table_cell(SUMMARY_TOTALS_TABLE, colname, row_labels[0])
-    excel.sum_col(wksheet, SUMMARY_MAIN_TABLE, colname, cell)
-    wksheet.conditional_format(cell, {'type': 'cell', 'criteria': '>',
-                                      'value': 0,
-                                      'format': excel.red_light_format})
-    wksheet.conditional_format(cell, {'type': 'cell', 'criteria': '<',
-                                      'value': 0,
-                                      'format': excel.green_light_format})
-    # # Conditional format IAR (Final) - ARM total to be red/green if >/< 0
-    # cell = excel.get_table_cell(SUMMARY_TOTALS_TABLE, 'IAR (Final) - ARM',
-    #                             'Totals (bytes)')
-    # excel.sum_col(wksheet, SUMMARY_MAIN_TABLE, 'IAR (Final) - ARM', cell)
-    # wksheet.conditional_format(cell, {'type': 'cell', 'criteria': '>',
-    #                                   'value': 0,
-    #                                   'format': excel.red_light_format})
-    # wksheet.conditional_format(cell, {'type': 'cell', 'criteria': '<',
-    #                                   'value': 0,
-    #                                   'format': excel.green_light_format})
+        colname = headers[3]
+        cell = excel.get_table_cell(SUMMARY_TOTALS_TABLE, colname, row_labels[0])
+        excel.sum_col(wksheet, SUMMARY_MAIN_TABLE, colname, cell)
 
-    # Add formulas for the % of ARM row
-    denom_cell = excel.get_table_cell(SUMMARY_TOTALS_TABLE, armbuild,
-                                      row_labels[0])
-    table = SUMMARY_TOTALS_TABLE
-    num_cell = excel.get_table_cell(table, headers[1], row_labels[0])
-    dest_cell = excel.get_table_cell(table, headers[1], row_labels[1])
-    excel.record_percentage(wksheet, num_cell, denom_cell, dest_cell, 1, False)
+        colname = headers[4]
+        cell = excel.get_table_cell(SUMMARY_TOTALS_TABLE, colname, row_labels[0])
+        excel.sum_col(wksheet, SUMMARY_MAIN_TABLE, colname, cell)
+        # Conditional format RVGCC Delta total to be red/green if >/< 0
+        wksheet.conditional_format(cell, {'type': 'cell', 'criteria': '>',
+                                          'value': 0,
+                                          'format': excel.red_light_format})
+        wksheet.conditional_format(cell, {'type': 'cell', 'criteria': '<',
+                                          'value': 0,
+                                          'format': excel.green_light_format})
 
-    num_cell = excel.get_table_cell(table, headers[2], row_labels[0])
-    dest_cell = excel.get_table_cell(table, headers[2], row_labels[1])
-    excel.record_percentage(wksheet, num_cell, denom_cell, dest_cell, 1, False)
+        # Conditional format RVGCC (Final) - ARM total to be red/green if >/< 0
+        colname = headers[5]
+        cell = excel.get_table_cell(SUMMARY_TOTALS_TABLE, colname, row_labels[0])
+        excel.sum_col(wksheet, SUMMARY_MAIN_TABLE, colname, cell)
+        wksheet.conditional_format(cell, {'type': 'cell', 'criteria': '>',
+                                          'value': 0,
+                                          'format': excel.red_light_format})
+        wksheet.conditional_format(cell, {'type': 'cell', 'criteria': '<',
+                                          'value': 0,
+                                          'format': excel.green_light_format})
 
-    # col = 'IAR'
-    # num_cell = excel.get_table_cell(table, col, 'Totals (bytes)')
-    # dest_cell = excel.get_table_cell(table, col, '% of ARM')
-    # excel.record_percentage(wksheet, num_cell, denom_cell, dest_cell, 1, False)
+        # Add formulas for the % of ARM row
+        denom_cell = excel.get_table_cell(SUMMARY_TOTALS_TABLE, armbuild,
+                                          row_labels[0])
+        table = SUMMARY_TOTALS_TABLE
+        num_cell = excel.get_table_cell(table, headers[1], row_labels[0])
+        dest_cell = excel.get_table_cell(table, headers[1], row_labels[1])
+        excel.record_percentage(wksheet, num_cell, denom_cell, dest_cell, 1, False)
 
-    num_cell = excel.get_table_cell(table, headers[3], row_labels[0])
-    dest_cell = excel.get_table_cell(table, headers[3], row_labels[1])
-    excel.record_percentage(wksheet, num_cell, denom_cell, dest_cell, 1, False)
+        num_cell = excel.get_table_cell(table, headers[2], row_labels[0])
+        dest_cell = excel.get_table_cell(table, headers[2], row_labels[1])
+        excel.record_percentage(wksheet, num_cell, denom_cell, dest_cell, 1, False)
 
-    # col = 'IAR (Final)'
-    # num_cell = excel.get_table_cell(table, col, 'Totals (bytes)')
-    # dest_cell = excel.get_table_cell(table, col, '% of ARM')
-    # excel.record_percentage(wksheet, num_cell, denom_cell, dest_cell, 1, False)
+        num_cell = excel.get_table_cell(table, headers[3], row_labels[0])
+        dest_cell = excel.get_table_cell(table, headers[3], row_labels[1])
+        excel.record_percentage(wksheet, num_cell, denom_cell, dest_cell, 1, False)
 
-    num_cell = excel.get_table_cell(table, headers[5], row_labels[0])
-    dest_cell = excel.get_table_cell(table, headers[5], row_labels[1])
-    # Threshold is 0 because this is relative number
-    excel.record_percentage(wksheet, num_cell, denom_cell, dest_cell, 0, False)
+        num_cell = excel.get_table_cell(table, headers[5], row_labels[0])
+        dest_cell = excel.get_table_cell(table, headers[5], row_labels[1])
+        # Threshold is 0 because this is relative number
+        excel.record_percentage(wksheet, num_cell, denom_cell, dest_cell, 0, False)
 
-    # col = 'IAR (Final) - ARM'
-    # num_cell = excel.get_table_cell(table, col, 'Totals (bytes)')
-    # dest_cell = excel.get_table_cell(table, col, '% of ARM')
-    # # Threshold is 0 because this is relative number
-    # excel.record_percentage(wksheet, num_cell, denom_cell, dest_cell, 0, False)
-
-    denom_cell = excel.get_table_cell(table, headers[2], row_labels[0])
-    num_cell = excel.get_table_cell(table, headers[4], row_labels[0])
-    dest_cell = excel.get_table_cell(table, headers[4], row_labels[2])
-    excel.record_percentage(wksheet, num_cell, denom_cell, dest_cell, 1, False)
-
-    # denom_cell = excel.get_table_cell(table, 'IAR', 'Totals (bytes)')
-    # col = 'IAR Delta'
-    # num_cell = excel.get_table_cell(table, col, 'Totals (bytes)')
-    # dest_cell = excel.get_table_cell(table, col,
-    #                                  '% of IAR')
-    # excel.record_percentage(wksheet, num_cell, denom_cell, dest_cell, 1, False)
+        denom_cell = excel.get_table_cell(table, headers[2], row_labels[0])
+        num_cell = excel.get_table_cell(table, headers[4], row_labels[0])
+        dest_cell = excel.get_table_cell(table, headers[4], row_labels[2])
+        excel.record_percentage(wksheet, num_cell, denom_cell, dest_cell, 1, False)
 
 
 def add_replaced_instr_table(reductions, rvbuild, armbuild):
@@ -757,6 +750,39 @@ def add_overshoot_chart(compiler):
 
 
 """ Functions to record data to the worksheet """
+
+
+def record_all_main(results, benchmarks):
+    table = SUMMARY_MAIN_TABLE
+    coord = excel.get_table_loc(SUMMARY_MAIN_TABLE)
+    (table_row, table_col, table_end_row, table_end_col) = coord
+    row = table_row + 3     # Start of data rows
+    # Number the functions
+    wksheet.write_column(row, 0, [i for i in range(len(benchmarks))])
+    curr_format = excel.light_bg_format
+    for b in benchmarks:
+        # Benchmark name
+        col = excel.get_table_col(table, 'Benchmark')
+        wksheet.write_string(row, col, b, curr_format)
+
+        # Benchmark sizes
+        for build in results.keys():
+            if build.find('arm') != -1:
+                size = results[build][b]
+            elif build.find('rv') != -1:
+                size = results[build][b][0]
+            col = excel.get_table_col(table, build)
+            wksheet.write_number(row, col, size, curr_format)
+
+        row += 1
+        # Alternate background colors
+        if curr_format == excel.light_bg_format:
+            curr_format = excel.dark_bg_format
+        else:
+            curr_format = excel.light_bg_format
+
+    # Save the location of the table
+    excel.update_table_loc(table, table_row, table_col, row - 1, table_end_col)
 
 
 def record_rvgcc_data(func, total_reductions, rvbuild):

@@ -307,3 +307,97 @@ def scan_arm_file(compiler, benchmark, armfile):
     # print("{:<30s}{:<5d}".format(compiler + " data13", data13))
     # print()
     return arm_results
+
+
+def scan_arm_file_data(compiler, benchmark, armfile):
+    """
+    Opens and scans the ARM disassembly file to extract data.
+
+    Data:
+        - arm_results
+            * Key: function name
+            * Val: function code size (in bytes)
+
+    Returns: arm_results
+    """
+
+    arm_results = {}
+    arm_instr = {}
+    curr_state = S_INIT
+    wksheet_name = None
+    func_name = None
+    last_flag = False
+
+    parse_rules = ParseRules(compiler, benchmark)
+    f = open(armfile)
+
+    for line in f:
+        if (curr_state == S_INIT):
+            transition = parse_rules.is_first(line)
+            if transition:
+                end = parse_rules.is_last(line)
+                if end:
+                    last_flag = True
+                curr_state = S_FUNC_START
+            else:
+                continue
+
+        if (curr_state == S_WAIT):
+            transition = parse_rules.is_func_start(line)
+            if transition:
+                end = parse_rules.is_last(line)
+                if end:
+                    last_flag = True
+                curr_state = S_FUNC_START
+            else:
+                continue
+
+        if (curr_state == S_FUNC_PARSE):
+            transition = parse_rules.is_func_end(line)
+            if transition:
+                curr_state = S_FUNC_END
+            else:
+                if parse_rules.is_skippable(line):
+                    continue
+                # Extract instr info from text and record in worksheet
+                res = parse_rules.scan_arm_instruction(line)
+                (addr, instr, bytes, opcode, args, comments) = res
+                arm_results[func_name] += bytes
+
+                if (opcode in arm_instr.keys()):
+                    arm_instr[opcode][0] += 1
+                    arm_instr[opcode][1].append(args)
+                else:
+                    arm_instr[opcode] = [1, [args]]
+
+                continue
+
+        if (curr_state == S_FUNC_END):
+            if (last_flag is False):
+                if (parse_rules.is_func_start(line)):
+                    curr_state = S_FUNC_START
+                else:
+                    curr_state = S_WAIT
+                    continue
+            else:
+                curr_state = S_END
+                break
+
+        if (curr_state == S_FUNC_START):
+            # Open worksheet for this function
+            (func_name, wksheet_name) = parse_rules.get_func_data(line)
+            if wksheet_name is not None:
+                # Reset function variables
+                arm_results[func_name] = 0
+                curr_state = S_FUNC_PARSE
+                continue
+            else:
+                curr_state = S_WAIT
+
+    f.close()
+
+    t_size = 0
+    for func in arm_results.keys():
+        t_size += arm_results[func]
+
+    return t_size

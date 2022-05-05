@@ -237,6 +237,12 @@ class ParseRules:
         res = None
         if (self.compiler == 'IAR'):
             res = re.search(r'^\s\s\?*`*[a-zA-Z_]\w+`*:', line)
+        elif (self.compiler == 'armclang'):
+            res = re.search(r'^\w+\s<__arm_cp.+>:', line)
+            if (res is not None):
+                res = None
+            else:
+                res = re.search(r'^\w+\s<.+>:', line)
         else:
             res = re.search(r'^\w+\s<.+>:', line)
         return (res is not None)
@@ -247,7 +253,8 @@ class ParseRules:
         """
         # Check if new function or empty line
         # Check if $d (data) or $t (table) section (IAR only)
-        res = (self.is_func_start(line)) or (line.strip() == '') \
+        res = (self.is_func_start(line)) \
+            or (line.strip() == '' and self.compiler != 'armclang') \
             or ((re.search(r'^\s\s`*[$a-zA-Z_][d.]*\w+`*:', line) is not None)
                 and self.compiler == 'IAR')
         return res
@@ -266,7 +273,9 @@ class ParseRules:
         res = (line.find('.word') != -1) or (line.find('.short') != -1) \
             or (line.strip() == '') or (line.find('.text') != -1) \
             or (line.find('.iar') != -1) or (line.find('Region') != -1) \
-            or (line.find('...') != -1)
+            or (line.find('...') != -1) \
+            or (line.find('file format') != -1) \
+            or (line.find('__arm_cp') != -1 and line.find('>:') != -1)
         return res
 
     def get_func_data(self, line):
