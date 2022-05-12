@@ -23,14 +23,9 @@ def single_benchmark(armbuild, rvbuild, benchmarkpath, output_file):
     if benchmarkpath[-1] != '/':
         benchmarkpath += '/'
     lin_split = re.split('/', benchmarkpath[::-1], maxsplit=2)
-    src = lin_split[-1][::-1]
     benchmark = lin_split[-2][::-1]
 
     # Check the inputs
-    # if (src not in '\t'.join(SOURCES)):
-    if not any(substring in src for substring in SOURCES):
-        print('Unknown compilation source: ', src)
-        exit()
     if (benchmark not in BENCHMARKS):
         print('Unknown benchmark: ', benchmark)
         exit()
@@ -99,14 +94,17 @@ def single_benchmark(armbuild, rvbuild, benchmarkpath, output_file):
     save_wksheet = save_restore_xlsx.create_sheet('__riscv_save')
     restore_wksheet = save_restore_xlsx.create_sheet('__riscv_restore')
 
+    rvoptfile = os.path.join(outdir, benchmark + '_' + rvbuild + '_function_selection.txt')
+    armoptfile = os.path.join(outdir, benchmark + '_' + armbuild + '_function_selection.txt')
+
     # Parse the input files
-    res = riscv.scan_riscv_file(rvbuild, benchmark, rvfile)
+    res = riscv.scan_riscv_file(rvbuild, benchmark, rvfile, rvoptfile)
     (gcc_results, gcc_reductions, gcc_pairs, gcc_instr, gcc_formats) = res
 
     # for instr in sorted(gcc_instr.keys()):
     #     print("{:<30}{:<30}".format(instr, gcc_instr[instr]))
 
-    arm_results = arm.scan_arm_file(armbuild, benchmark, armfile)
+    arm_results = arm.scan_arm_file(armbuild, benchmark, armfile, armoptfile)
 
     # if (IAR is True):
     #     parse_rules.compiler = 'IAR'
@@ -181,7 +179,7 @@ def single_benchmark(armbuild, rvbuild, benchmarkpath, output_file):
     excel.close_workbook()
     if not os.path.isdir('results'):
         os.makedirs('results')
-    os.system("cp " + output_file + " results/.")
+    # os.system("cp " + output_file + " results/.")
     print('\nComplete! See Excel workbook: ')
     print('\t' + output_file)
     print('\t' + 'results/' + benchmark + '_analysis.xlsx')

@@ -1,4 +1,6 @@
 import importlib
+import os
+import re
 
 import excel
 import cx
@@ -30,7 +32,57 @@ def update_tot(t_red, t_pair, t_instr, t_lbl, f_red, f_pair, f_instr, f_lbl):
             t_lbl[lbl][instr] += f_lbl[lbl][instr]
     return (t_red, t_pair, t_instr, t_lbl)
 
-def scan_riscv_file(compiler, benchmark, rvfile):
+
+def create_optfile(compiler, benchmark, rvfile, optfile):
+    parse_rules = ParseRules(compiler, benchmark)
+
+    with open(optfile, 'a') as optf:
+        optf.write('{:<30}{:<30}{:<30}\n'.format('function', 'parse (Y/N)', 'sub-function (Y/N)'))
+
+    # Open the appropriate text file
+    f = open(rvfile)
+
+    parsing = False
+
+    for line in f:
+        if parse_rules.is_func_start(line):
+            if parse_rules.is_first(line):
+                parsing = True
+            (func_name, wksheet_name) = parse_rules.get_func_data(line)
+            sr_flag = save_restore_en and (wksheet_name.find('__riscv_save') != -1 \
+                    or wksheet_name.find('__riscv_restore') != -1)
+            with open(optfile, 'a') as optf:
+                if parsing or sr_flag:
+                    optf.write('{:<30}{:<30}{:<30}\n'.format(func_name, 'Y', 'N'))
+                else:
+                    optf.write('{:<30}{:<30}{:<30}\n'.format(func_name, 'N', 'N'))
+            if parse_rules.is_last(line):
+                parsing = False
+
+    f.close()
+    return
+
+
+def read_optfile(optfile):
+    opts = {}
+    fcnt = 0
+    header = True
+    with open(optfile, 'r') as f:
+        for line in f:
+            if header:
+                header = False
+                continue
+            linsplit = re.split(' ', line)
+            linsplit = [i.strip() for i in linsplit if i.strip() != '']
+            func_name, parse, subfunc = linsplit
+            parse = (parse == 'Y')
+            subfunc = (subfunc == 'Y')
+            opts[fcnt] = [func_name, parse, subfunc]
+            fcnt += 1
+    return opts
+
+
+def scan_riscv_file(compiler, benchmark, assemblyfile, optfile):
     """
     Opens and scans the RISC-V disassembly files to extract data.
 
@@ -86,6 +138,11 @@ def scan_riscv_file(compiler, benchmark, rvfile):
     data11 = 0
     data12 = 0
 
+    optflag = os.path.exists(optfile)
+    if not optflag:
+        create_optfile(compiler, benchmark, assemblyfile, optfile)
+    func_opts = read_optfile(optfile)
+
     # Initialize high-level data structures
     results = {}
     if (save_restore_en):
@@ -105,43 +162,181 @@ def scan_riscv_file(compiler, benchmark, rvfile):
                 t_formats[lbl][instr] = 0
 
     parse_rules = ParseRules(compiler, benchmark)
-    # Open the appropriate text file
-    f = open(rvfile)
 
-    wksheet_name = None
-    last_flag = False
+    parsing = False
+    last_saved = False
+    fcnt = 0
+    with open(assemblyfile, 'r') as f:
+        for line in f:
+            # found the start of a new function
+            if parse_rules.is_func_start(line):
+                (fname, wname) = parse_rules.get_func_data(line)
+                nm, parse, subfunc = func_opts[fcnt]
+                fcnt += 1
+                if nm != fname:
+                    print('Error: function name does not match func_opts record')
+                    exit(0)
+                # done w/current if new function is not a subfunction or not set
+                # to parse
+                if parsing and (not subfunc or not parse):
+                    # record current function totals
+                    if (wksheet_name == '__riscv_save'):
+                        # increment total for save_0, save_1, etc.
+                        if (f_size > 0):
+                            curr = results['__riscv_save'][0]
+                            results['__riscv_save'] = (curr + f_size, {}, {}, {}, 0)
+                    elif (wksheet_name == '__riscv_restore'):
+                        # increment total for restore_0, restore_1, etc.
+                        if (f_size > 0):
+                            curr = results['__riscv_restore'][0]
+                            results['__riscv_restore'] = (curr + f_size, {}, {}, {}, 0)
+                    else:
+                        # If using cx.lwpc, need to check if offset width exceeded
+                        if lwpc_en[1]:
+                            (res, min_offset, f_bits) = cx.check_offsets(f_size,
+                                                                         f_reductions,
+                                                                         max_offset,
+                                                                         min_offset)
+                            # if number of bits too high, not able to us cx.lwpc
+                            if (res is False):
+                                f_reductions['cx.lwpc'] = 0
+                                # revert back to original 32-bit LW
+                                if 'lw' in f_instr.keys():
+                                    f_instr['lw'] += f_instr['cx.lwpc']
+                                else:
+                                    f_instr['lw'] = f_instr['cx.lwpc']
+                                f_instr['cx.lwpc'] = 0
+                                lwpc_fail = True
 
-    state = S_INIT
-    for line in f:
-        if (state == S_INIT):
-            transition = parse_rules.is_first(line)
-            if transition:
-                end = parse_rules.is_last(line)
-                if end:
-                    last_flag = True
-                # print("First function found.\n")
-                state = S_FUNC_START
-            else:
-                continue
+                            # else:
+                            #     data5 -= f_instr['cx.lwpc']
 
-        if (state == S_WAIT):
-            # waiting for next function to start
-            transition = parse_rules.is_func_start(line)
-            if transition:
-                # check if it is the last function
-                end = parse_rules.is_last(line)
-                if end:
-                    last_flag = True
-                state = S_FUNC_START
-            else:
-                continue
+                        # Add function totals to the overall benchmark totals
+                        res = update_tot(t_reductions, t_pairs, t_instr,
+                                         t_formats, f_reductions, f_pairs,
+                                         f_instr, f_formats)
+                        (t_reductions, t_pairs, t_instr, t_formats) = res
+                        # Save the function results and record in Excel worksheet
+                        results[func_name] = (f_size, f_reductions, f_instr, f_formats,
+                                              f_bits)
+                        function_xlsx.record_riscv_totals(wksheet, compiler, f_size,
+                                                          f_reductions)
+                        function_xlsx.add_tables_charts_marks(wksheet, compiler,
+                                                              f_instr, f_formats,
+                                                              replaced_loc,
+                                                              not_repl_loc, lwpc_fail,
+                                                              pair_loc)
+                    last_saved = True
+                # a new function to parse and not a subfunction
+                if parse and not subfunc:
+                    # Create and format new worksheet
+                    (func_name, wksheet_name) = parse_rules.get_func_data(line)
+                    if (wksheet_name == '__riscv_save'):
+                        wksheet = excel.wkbook.get_worksheet_by_name(wksheet_name)
+                        # Some functions grouped/have same definition in assembly
+                        num = int(re.split('_', func_name)[-1])
+                        if (num < 4):
+                            if (compiler == 'IAR'):
+                                tbl = SAVE_IAR_A_TABLE
+                            elif (compiler == 'rvgcc'):
+                                tbl = SAVE_RVGCC_A_TABLE
+                        elif (num < 8):
+                            if (compiler == 'IAR'):
+                                tbl = SAVE_IAR_B_TABLE
+                            elif (compiler == 'rvgcc'):
+                                tbl = SAVE_RVGCC_B_TABLE
+                        elif (num < 12):
+                            if (compiler == 'IAR'):
+                                tbl = SAVE_IAR_C_TABLE
+                            elif (compiler == 'rvgcc'):
+                                tbl = SAVE_RVGCC_C_TABLE
+                        else:
+                            if (compiler == 'IAR'):
+                                tbl = SAVE_IAR_D_TABLE
+                            elif (compiler == 'rvgcc'):
+                                tbl = SAVE_RVGCC_D_TABLE
 
-        if (state == S_FUNC_PARSE):
-            transition = parse_rules.is_func_end(line)
-            if transition:
-                # reached end of current function
-                state = S_FUNC_END
-            else:
+                        row = excel.get_table_loc(tbl)[0] + 3
+                        f_size = 0
+                    elif (wksheet_name == '__riscv_restore'):
+                        wksheet = excel.wkbook.get_worksheet_by_name(wksheet_name)
+                        num = int(re.split('_', func_name)[-1])
+                        if (num < 4):
+                            if (compiler == 'IAR'):
+                                tbl = RESTORE_IAR_A_TABLE
+                            elif (compiler == 'rvgcc'):
+                                tbl = RESTORE_RVGCC_A_TABLE
+                        elif (num < 8):
+                            if (compiler == 'IAR'):
+                                tbl = RESTORE_IAR_B_TABLE
+                            elif (compiler == 'rvgcc'):
+                                tbl = RESTORE_RVGCC_B_TABLE
+                        elif (num < 12):
+                            if (compiler == 'IAR'):
+                                tbl = RESTORE_IAR_C_TABLE
+                            elif (compiler == 'rvgcc'):
+                                tbl = RESTORE_RVGCC_C_TABLE
+                        else:
+                            if (compiler == 'IAR'):
+                                tbl = RESTORE_IAR_D_TABLE
+                            elif (compiler == 'rvgcc'):
+                                tbl = RESTORE_RVGCC_D_TABLE
+
+                        row = excel.get_table_loc(tbl)[0] + 3
+                        f_size = 0
+                    elif (wksheet_name is not None):
+                        if (compiler == 'rvgcc'):
+                            # print("New function: " + func_name)
+                            wksheet = function_xlsx.create_sheet(func_name,
+                                                                 wksheet_name)
+                            function_xlsx.record_func_name(wksheet, func_name)
+                            # Place instruction data starting below the headers
+                            row = excel.get_table_loc(RVGCC_TABLE)[0] + 3
+                        elif (compiler == 'IAR'):
+                            wksheet = excel.wkbook.get_worksheet_by_name(wksheet_name)
+                            row = excel.get_table_loc(IAR_TABLE)[0] + 3
+                        # Reset current function totals
+                        f_size = 0
+                        f_reductions = {}
+                        f_instr = {}
+                        f_formats = {}
+                        replaced_loc = {}
+                        not_repl_loc = {}
+                        f_pairs = {}
+                        pair_loc = {}
+                        prev_op = ''
+                        prev_args = []
+                        for instr in ENABLED:
+                            f_reductions[instr] = 0
+                            f_instr[instr] = 0
+                            replaced_loc[instr] = []
+                        for pair in PAIRS_ENABLED:
+                            pair_loc[pair] = []
+                        f_bits = 0
+                        for lbl in RV32_FORMATS:
+                            f_formats[lbl] = {}
+                            for instr in RV32_INSTR_FORMATS.keys():
+                                instr_lbl = RV32_INSTR_FORMATS[instr][0]
+                                if (instr_lbl == lbl):
+                                    f_formats[lbl][instr] = 0
+                        # Add entry for new function with default values
+                        results[func_name] = (f_size, f_reductions, f_instr, f_formats,
+                                              f_bits)
+                        # Reset offset trackers
+                        lwpc_fail = False
+                        max_offset = 0
+                        min_offset = float("inf")
+                    last_saved = False
+                    parsing = True
+                    continue
+                # a subfunction of the previous function
+                elif parse and subfunc:
+                    parsing = True
+                    continue
+                else:
+                    parsing = False
+                    continue
+            if parsing:
                 if parse_rules.is_skippable(line):
                     continue
                 # Extract instruction data from line of text and record
@@ -445,177 +640,7 @@ def scan_riscv_file(compiler, benchmark, rvfile):
                 row += 1
                 continue
 
-        if (state == S_FUNC_END):
-            if (wksheet_name == '__riscv_save'):
-                # increment total for save_0, save_1, etc.
-                if (f_size > 0):
-                    curr = results['__riscv_save'][0]
-                    results['__riscv_save'] = (curr + f_size, {}, {}, {}, 0)
-            elif (wksheet_name == '__riscv_restore'):
-                # increment total for restore_0, restore_1, etc.
-                if (f_size > 0):
-                    curr = results['__riscv_restore'][0]
-                    results['__riscv_restore'] = (curr + f_size, {}, {}, {}, 0)
-            else:
-                # If using cx.lwpc, need to check if offset width exceeded
-                if lwpc_en[1]:
-                    (res, min_offset, f_bits) = cx.check_offsets(f_size,
-                                                                 f_reductions,
-                                                                 max_offset,
-                                                                 min_offset)
-                    # if number of bits too high, not able to us cx.lwpc
-                    if (res is False):
-                        f_reductions['cx.lwpc'] = 0
-                        # revert back to original 32-bit LW
-                        if 'lw' in f_instr.keys():
-                            f_instr['lw'] += f_instr['cx.lwpc']
-                        else:
-                            f_instr['lw'] = f_instr['cx.lwpc']
-                        f_instr['cx.lwpc'] = 0
-                        lwpc_fail = True
-
-                    # else:
-                    #     data5 -= f_instr['cx.lwpc']
-
-                # Add function totals to the overall benchmark totals
-                res = update_tot(t_reductions, t_pairs, t_instr,
-                                 t_formats, f_reductions, f_pairs,
-                                 f_instr, f_formats)
-                (t_reductions, t_pairs, t_instr, t_formats) = res
-                # Save the function results and record in Excel worksheet
-                results[func_name] = (f_size, f_reductions, f_instr, f_formats,
-                                      f_bits)
-                function_xlsx.record_riscv_totals(wksheet, compiler, f_size,
-                                                  f_reductions)
-                function_xlsx.add_tables_charts_marks(wksheet, compiler,
-                                                      f_instr, f_formats,
-                                                      replaced_loc,
-                                                      not_repl_loc, lwpc_fail,
-                                                      pair_loc)
-            # Indicate successful completion of last function
-            if (last_flag is True):
-                state = S_END
-                break
-            # Or continue to next function
-            else:
-                if parse_rules.is_func_start(line):
-                    end = parse_rules.is_last(line)
-                    if end:
-                        last_flag = True
-                    state = S_FUNC_START
-                else:
-                    state = S_WAIT
-                    continue
-
-        if (state == S_FUNC_START):
-            # Create and format new worksheet
-            (func_name, wksheet_name) = parse_rules.get_func_data(line)
-            if (wksheet_name == '__riscv_save'):
-                wksheet = excel.wkbook.get_worksheet_by_name(wksheet_name)
-                # Some functions grouped/have same definition in assembly
-                num = int(re.split('_', func_name)[-1])
-                if (num < 4):
-                    if (compiler == 'IAR'):
-                        tbl = SAVE_IAR_A_TABLE
-                    elif (compiler == 'rvgcc'):
-                        tbl = SAVE_RVGCC_A_TABLE
-                elif (num < 8):
-                    if (compiler == 'IAR'):
-                        tbl = SAVE_IAR_B_TABLE
-                    elif (compiler == 'rvgcc'):
-                        tbl = SAVE_RVGCC_B_TABLE
-                elif (num < 12):
-                    if (compiler == 'IAR'):
-                        tbl = SAVE_IAR_C_TABLE
-                    elif (compiler == 'rvgcc'):
-                        tbl = SAVE_RVGCC_C_TABLE
-                else:
-                    if (compiler == 'IAR'):
-                        tbl = SAVE_IAR_D_TABLE
-                    elif (compiler == 'rvgcc'):
-                        tbl = SAVE_RVGCC_D_TABLE
-
-                row = excel.get_table_loc(tbl)[0] + 3
-                f_size = 0
-                state = S_FUNC_PARSE
-                continue
-            elif (wksheet_name == '__riscv_restore'):
-                wksheet = excel.wkbook.get_worksheet_by_name(wksheet_name)
-                num = int(re.split('_', func_name)[-1])
-                if (num < 4):
-                    if (compiler == 'IAR'):
-                        tbl = RESTORE_IAR_A_TABLE
-                    elif (compiler == 'rvgcc'):
-                        tbl = RESTORE_RVGCC_A_TABLE
-                elif (num < 8):
-                    if (compiler == 'IAR'):
-                        tbl = RESTORE_IAR_B_TABLE
-                    elif (compiler == 'rvgcc'):
-                        tbl = RESTORE_RVGCC_B_TABLE
-                elif (num < 12):
-                    if (compiler == 'IAR'):
-                        tbl = RESTORE_IAR_C_TABLE
-                    elif (compiler == 'rvgcc'):
-                        tbl = RESTORE_RVGCC_C_TABLE
-                else:
-                    if (compiler == 'IAR'):
-                        tbl = RESTORE_IAR_D_TABLE
-                    elif (compiler == 'rvgcc'):
-                        tbl = RESTORE_RVGCC_D_TABLE
-
-                row = excel.get_table_loc(tbl)[0] + 3
-                f_size = 0
-                state = S_FUNC_PARSE
-                continue
-            elif (wksheet_name is not None):
-                if (compiler == 'rvgcc'):
-                    # print("New function: " + func_name)
-                    wksheet = function_xlsx.create_sheet(func_name,
-                                                         wksheet_name)
-                    function_xlsx.record_func_name(wksheet, func_name)
-                    # Place instruction data starting below the headers
-                    row = excel.get_table_loc(RVGCC_TABLE)[0] + 3
-                elif (compiler == 'IAR'):
-                    wksheet = excel.wkbook.get_worksheet_by_name(wksheet_name)
-                    row = excel.get_table_loc(IAR_TABLE)[0] + 3
-                # Reset current function totals
-                f_size = 0
-                f_reductions = {}
-                f_instr = {}
-                f_formats = {}
-                replaced_loc = {}
-                not_repl_loc = {}
-                f_pairs = {}
-                pair_loc = {}
-                prev_op = ''
-                prev_args = []
-                for instr in ENABLED:
-                    f_reductions[instr] = 0
-                    f_instr[instr] = 0
-                    replaced_loc[instr] = []
-                for pair in PAIRS_ENABLED:
-                    pair_loc[pair] = []
-                f_bits = 0
-                for lbl in RV32_FORMATS:
-                    f_formats[lbl] = {}
-                    for instr in RV32_INSTR_FORMATS.keys():
-                        instr_lbl = RV32_INSTR_FORMATS[instr][0]
-                        if (instr_lbl == lbl):
-                            f_formats[lbl][instr] = 0
-                # Add entry for new function with default values
-                results[func_name] = (f_size, f_reductions, f_instr, f_formats,
-                                      f_bits)
-                # Reset offset trackers
-                lwpc_fail = False
-                max_offset = 0
-                min_offset = float("inf")
-                state = S_FUNC_PARSE
-                continue
-            else:
-                state = S_WAIT
-                continue
-    # Catch any function that occurs at the end of the file and save results
-    if (state != S_END) and (wksheet_name is not None):
+    if not last_saved:
         if (wksheet_name == '__riscv_save'):
             # increment total for save_0, save_1, etc.
             if (f_size > 0):
@@ -662,7 +687,6 @@ def scan_riscv_file(compiler, benchmark, rvfile):
                                                   replaced_loc,
                                                   not_repl_loc, lwpc_fail,
                                                   pair_loc)
-
     # Only allow the first BR_KEEP (%) of each type of branch to be compressed
     for br_instr in BR_ENABLED:
         if br_instr in t_instr.keys():
@@ -719,7 +743,6 @@ def scan_riscv_file(compiler, benchmark, rvfile):
                              results['__riscv_restore'][1], {}, {}, {})
             (t_reductions, t_pairs, t_instr, t_formats) = res
 
-    f.close()
     # print("{:<30s}{:<5d}".format(compiler + " data0", data0))
     # print("{:<30s}{:<5d}".format(compiler + " data1", data1))
     # print("{:<30s}{:<5d}".format(compiler + " data2", data2))

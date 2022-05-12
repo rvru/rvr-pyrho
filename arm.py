@@ -1,4 +1,6 @@
 import importlib
+import os
+import re
 
 import excel
 import function_xlsx
@@ -6,7 +8,58 @@ from constants import *
 
 ParseRules = getattr(importlib.import_module('parser'), 'ParseRules')
 
-def scan_arm_file(compiler, benchmark, armfile):
+
+def create_optfile(compiler, benchmark, assemblyfile, optfile):
+    parse_rules = ParseRules(compiler, benchmark)
+
+    with open(optfile, 'a') as optf:
+        optf.write('{:<30}{:<30}{:<30}\n'.format('function', 'parse (Y/N)', 'sub-function (Y/N)'))
+
+    parsing = 'N'
+    lastfunction = False
+
+    with open(assemblyfile, 'r') as f:
+        for line in f:
+            if parse_rules.is_func_start(line):
+                # starting the first function of interest
+                if parse_rules.is_first(line):
+                    parsing = 'Y'
+                (func_name, wksheet_name) = parse_rules.get_func_data(line)
+                if func_name.find('__arm_cp.') != -1:
+                    subfunc = 'Y'
+                else:
+                    subfunc = 'N'
+                # finished the last function (including sub-functions)
+                if lastfunction and subfunc == 'N':
+                    parsing = 'N'
+                with open(optfile, 'a') as optf:
+                    optf.write('{:<30}{:<30}{:<30}\n'.format(func_name, parsing, subfunc))
+                # starting the last function
+                if parse_rules.is_last(line):
+                    lastfunction = True
+    return
+
+
+def read_optfile(optfile):
+    opts = {}
+    fcnt = 0
+    header = True
+    with open(optfile, 'r') as f:
+        for line in f:
+            if header:
+                header = False
+                continue
+            linsplit = re.split(' ', line)
+            linsplit = [i.strip() for i in linsplit if i.strip() != '']
+            func_name, parse, subfunc = linsplit
+            parse = (parse == 'Y')
+            subfunc = (subfunc == 'Y')
+            opts[fcnt] = [func_name, parse, subfunc]
+            fcnt += 1
+    return opts
+
+
+def scan_arm_file(compiler, benchmark, armfile, optfile):
     """
     Opens and scans the ARM disassembly file to extract data.
 
@@ -32,42 +85,59 @@ def scan_arm_file(compiler, benchmark, armfile):
     data12 = 0
     data13 = 0
 
+    optflag = os.path.exists(optfile)
+    if not optflag:
+        create_optfile(compiler, benchmark, armfile, optfile)
+        print('New function selection file(s) created. Please verify.')
+        exit(0)
+    func_opts = read_optfile(optfile)
+
     arm_results = {}
     arm_instr = {}
-    curr_state = S_INIT
-    wksheet_name = None
-    func_name = None
-    last_flag = False
 
     parse_rules = ParseRules(compiler, benchmark)
-    f = open(armfile)
 
-    for line in f:
-        if (curr_state == S_INIT):
-            transition = parse_rules.is_first(line)
-            if transition:
-                end = parse_rules.is_last(line)
-                if end:
-                    last_flag = True
-                curr_state = S_FUNC_START
-            else:
-                continue
-
-        if (curr_state == S_WAIT):
-            transition = parse_rules.is_func_start(line)
-            if transition:
-                end = parse_rules.is_last(line)
-                if end:
-                    last_flag = True
-                curr_state = S_FUNC_START
-            else:
-                continue
-
-        if (curr_state == S_FUNC_PARSE):
-            transition = parse_rules.is_func_end(line)
-            if transition:
-                curr_state = S_FUNC_END
-            else:
+    parsing = False
+    last_saved = False
+    fcnt = 0
+    with open(armfile, 'r') as f:
+        for line in f:
+            # found the start of a new function
+            if parse_rules.is_func_start(line):
+                (fname, wname) = parse_rules.get_func_data(line)
+                nm, parse, subfunc = func_opts[fcnt]
+                fcnt += 1
+                if nm != fname:
+                    print('Error: function name does not match func_opts record')
+                    exit(0)
+                # done w/current if new function is not a subfunction or not set
+                # to parse
+                if parsing and (not subfunc or not parse):
+                    # record current function totals
+                    function_xlsx.record_arm_totals(wksheet,
+                                                    arm_results[func_name])
+                    last_saved = True
+                # a new function to parse and not a subfunction
+                if parse and not subfunc:
+                    # setup for the new function
+                    func_name = fname
+                    wksheet_name = wname
+                    wksheet = excel.wkbook.get_worksheet_by_name(wksheet_name)
+                    # Reset function variables
+                    arm_results[func_name] = 0
+                    # Start data recording in 'ARM M0+' table below the header
+                    row = excel.get_table_loc(ARM_TABLE)[0] + 3
+                    last_saved = False
+                    parsing = True
+                    continue
+                # a subfunction of the previous function
+                elif parse and subfunc:
+                    parsing = True
+                    continue
+                else:
+                    parsing = False
+                    continue
+            if parsing:
                 if parse_rules.is_skippable(line):
                     continue
                 # Extract instr info from text and record in worksheet
@@ -152,38 +222,8 @@ def scan_arm_file(compiler, benchmark, armfile):
                 #         print(line)
                 continue
 
-        if (curr_state == S_FUNC_END):
-            function_xlsx.record_arm_totals(wksheet,
-                                            arm_results[func_name])
-            if (last_flag is False):
-                if (parse_rules.is_func_start(line)):
-                    curr_state = S_FUNC_START
-                else:
-                    curr_state = S_WAIT
-                    continue
-            else:
-                curr_state = S_END
-                break
-
-        if (curr_state == S_FUNC_START):
-            # Open worksheet for this function
-            (func_name, wksheet_name) = parse_rules.get_func_data(line)
-            if wksheet_name is not None:
-                wksheet = excel.wkbook.get_worksheet_by_name(wksheet_name)
-                # Reset function variables
-                arm_results[func_name] = 0
-                # Start data recording in 'ARM M0+' table below the header
-                row = excel.get_table_loc(ARM_TABLE)[0] + 3
-                curr_state = S_FUNC_PARSE
-                continue
-            else:
-                curr_state = S_WAIT
-    # Catch any function that occurs at the end of the file and save results
-    if (curr_state != S_END) and (wksheet_name is not None) \
-            and (func_name in arm_results.keys()):
+    if not last_saved:
         function_xlsx.record_arm_totals(wksheet, arm_results[func_name])
-
-    f.close()
 
     # print("{:<30}{:<30}".format('ldr', arm_instr['ldr']))
     # for opcode in sorted(arm_instr.keys()):

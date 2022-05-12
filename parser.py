@@ -237,12 +237,12 @@ class ParseRules:
         res = None
         if (self.compiler == 'IAR'):
             res = re.search(r'^\s\s\?*`*[a-zA-Z_]\w+`*:', line)
-        elif (self.compiler == 'armclang'):
-            res = re.search(r'^\w+\s<__arm_cp.+>:', line)
-            if (res is not None):
-                res = None
-            else:
-                res = re.search(r'^\w+\s<.+>:', line)
+        # elif (self.compiler == 'armclang'):
+        #     res = re.search(r'^\w+\s<__arm_cp.+>:', line)
+        #     if (res is not None):
+        #         res = None
+        #     else:
+        #         res = re.search(r'^\w+\s<.+>:', line)
         else:
             res = re.search(r'^\w+\s<.+>:', line)
         return (res is not None)
@@ -253,8 +253,8 @@ class ParseRules:
         """
         # Check if new function or empty line
         # Check if $d (data) or $t (table) section (IAR only)
-        res = (self.is_func_start(line)) \
-            or (line.strip() == '' and self.compiler != 'armclang') \
+        res = self.is_func_start(line) \
+            or line.strip() == '' \
             or ((re.search(r'^\s\s`*[$a-zA-Z_][d.]*\w+`*:', line) is not None)
                 and self.compiler == 'IAR')
         return res
@@ -274,8 +274,8 @@ class ParseRules:
             or (line.strip() == '') or (line.find('.text') != -1) \
             or (line.find('.iar') != -1) or (line.find('Region') != -1) \
             or (line.find('...') != -1) \
-            or (line.find('file format') != -1) \
-            or (line.find('__arm_cp') != -1 and line.find('>:') != -1)
+            or (line.find('file format') != -1)
+            # or (line.find('__arm_cp') != -1 and line.find('>:') != -1)
         return res
 
     def get_func_data(self, line):
@@ -299,53 +299,10 @@ class ParseRules:
             full_name = lin_split[1]
             # Exclude extra characters <>:
             full_name = full_name[1:-2]
-            # WATERMAN Benchmark
-            if (self.benchmark == 'WatermanBenchmark'):
-                name = full_name
-                excel.wksheet_names[full_name] = name
-            elif (self.benchmark == 'cubic'):
-                if (full_name != 'verify_benchmark') \
-                    and (full_name != 'initialise_benchmark') \
-                    and (full_name != 'warm_caches') \
-                    and (full_name != 'benchmark'):
-                    name = full_name
-                    excel.wksheet_names[full_name] = name
-            elif (self.benchmark == 'huffbench'):
-                if (full_name != 'verify_benchmark') \
-                    and (full_name != 'initialise_benchmark'):
-                    name = full_name
-                    excel.wksheet_names[full_name] = name
-            elif (self.benchmark == 'minver'):
-                if (full_name != 'verify_benchmark') \
-                    and (full_name != 'initialise_benchmark'):
-                    name = full_name
-                    excel.wksheet_names[full_name] = name
-            elif (self.benchmark == 'nbody'):
-                if (full_name != 'initialise_benchmark'):
-                    name = full_name
-                    excel.wksheet_names[full_name] = name
-            elif (self.benchmark == 'nettle_aes'):
-                if (full_name != 'verify_benchmark') \
-                    and (full_name != 'initialise_benchmark'):
-                    name = full_name
-                    excel.wksheet_names[full_name] = name
-            elif (self.benchmark == 'picojpeg'):
-                if (full_name != 'verify_benchmark') \
-                    and (full_name != 'initialise_benchmark') \
-                    and (full_name != 'warm_caches') \
-                    and (full_name != 'benchmark') \
-                    and (full_name[0:3] != 'imul') \
-                    and (full_name.find('.') == -1):
-                    name = full_name
-                    excel.wksheet_names[full_name] = name
-            elif (self.benchmark == 'sglib_combined'):
+            if (self.benchmark == 'sglib_combined'):
                 if (full_name.find('sglib_') != -1):
                     name = full_name[-31:]
                 excel.wksheet_names[full_name] = name
-            elif (self.benchmark == 'slre'):
-                if (full_name.find('.') == -1):
-                    name = full_name
-                    excel.wksheet_names[full_name] = name
             else:
                 name = full_name
                 excel.wksheet_names[full_name] = name
@@ -357,28 +314,7 @@ class ParseRules:
                 elif (full_name[0:15] == '__riscv_restore'):
                     name = '__riscv_restore'
                     excel.wksheet_names[full_name] = name
-        elif (self.compiler == 'armcc'):
-            # Function name
-            full_name = lin_split[1]
-            # Exclude extra characters <>:
-            full_name = full_name[1:-2]
-            if full_name in excel.wksheet_names.keys():
-                name = excel.wksheet_names[full_name]
-        elif (self.compiler == 'armclang'):
-            # Function name
-            full_name = lin_split[1]
-            # Exclude extra characters <>:
-            full_name = full_name[1:-2]
-            if full_name in excel.wksheet_names.keys():
-                name = excel.wksheet_names[full_name]
-        elif (self.compiler == 'armgcc'):
-            # Function name
-            full_name = lin_split[1]
-            # Exclude extra characters <>:
-            full_name = full_name[1:-2]
-            if full_name in excel.wksheet_names.keys():
-                name = excel.wksheet_names[full_name]
-        elif (self.compiler == 'IAR'):
+        elif (self.compiler == 'rviar'):
             full_name = lin_split[0]
             # Exclude '??' and ':' as needed
             full_name = full_name[:-1]
@@ -393,6 +329,13 @@ class ParseRules:
                 elif (full_name[0:15] == '__riscv_restore'):
                     name = '__riscv_restore'
                     excel.wksheet_names[full_name] = name
+        elif (self.compiler[:3] == 'arm'):
+            # Function name
+            full_name = lin_split[1]
+            # Exclude extra characters <>:
+            full_name = full_name[1:-2]
+            if full_name in excel.wksheet_names.keys():
+                name = excel.wksheet_names[full_name]
         return (full_name, name)
 
     def scan_rvgcc_instruction(self, line):

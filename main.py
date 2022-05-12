@@ -70,7 +70,7 @@ from constants import *
 parser = argparse.ArgumentParser(description='PyRho, A Code Density Analyzer')
 parser.add_argument('--arm', required=True, help='desired Arm build')
 parser.add_argument('--riscv', required=True, help='desired RISC-V build')
-parser.add_argument('benchmark', help='path to benchmark')
+parser.add_argument('benchmark', help='path to benchmark(s)')
 parser.add_argument('-a', '--all', nargs='?', const=True, default=False,
                     help='')
 parser.add_argument('-o', '--outfile', nargs='?', const=None, default=None,
