@@ -13,7 +13,7 @@ def create_optfile(compiler, benchmark, assemblyfile, optfile):
     parse_rules = ParseRules(compiler, benchmark)
 
     with open(optfile, 'a') as optf:
-        optf.write('{:<30}{:<30}{:<30}\n'.format('function', 'parse (Y/N)', 'sub-function (Y/N)'))
+        optf.write('{:<50}{:<30}{:<30}\n'.format('function', 'parse (Y/N)', 'sub-function (Y/N)'))
 
     parsing = 'N'
     lastfunction = False
@@ -33,7 +33,7 @@ def create_optfile(compiler, benchmark, assemblyfile, optfile):
                 if lastfunction and subfunc == 'N':
                     parsing = 'N'
                 with open(optfile, 'a') as optf:
-                    optf.write('{:<30}{:<30}{:<30}\n'.format(func_name, parsing, subfunc))
+                    optf.write('{:<50}{:<30}{:<30}\n'.format(func_name, parsing, subfunc))
                 # starting the last function
                 if parse_rules.is_last(line):
                     lastfunction = True
@@ -143,6 +143,8 @@ def scan_arm_file(compiler, benchmark, armfile, optfile):
                 # Extract instr info from text and record in worksheet
                 res = parse_rules.scan_arm_instruction(line)
                 (addr, instr, bytes, opcode, args, comments) = res
+                if wksheet is None:
+                    print(line)
                 function_xlsx.record_instruction(wksheet, compiler, row, addr,
                                                  instr, opcode, args, comments)
                 arm_results[func_name] += bytes

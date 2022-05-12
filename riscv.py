@@ -37,7 +37,7 @@ def create_optfile(compiler, benchmark, rvfile, optfile):
     parse_rules = ParseRules(compiler, benchmark)
 
     with open(optfile, 'a') as optf:
-        optf.write('{:<30}{:<30}{:<30}\n'.format('function', 'parse (Y/N)', 'sub-function (Y/N)'))
+        optf.write('{:<50}{:<30}{:<30}\n'.format('function', 'parse (Y/N)', 'sub-function (Y/N)'))
 
     # Open the appropriate text file
     f = open(rvfile)
@@ -53,9 +53,9 @@ def create_optfile(compiler, benchmark, rvfile, optfile):
                     or wksheet_name.find('__riscv_restore') != -1)
             with open(optfile, 'a') as optf:
                 if parsing or sr_flag:
-                    optf.write('{:<30}{:<30}{:<30}\n'.format(func_name, 'Y', 'N'))
+                    optf.write('{:<50}{:<30}{:<30}\n'.format(func_name, 'Y', 'N'))
                 else:
-                    optf.write('{:<30}{:<30}{:<30}\n'.format(func_name, 'N', 'N'))
+                    optf.write('{:<50}{:<30}{:<30}\n'.format(func_name, 'N', 'N'))
             if parse_rules.is_last(line):
                 parsing = False
 

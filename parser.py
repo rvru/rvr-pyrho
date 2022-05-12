@@ -274,7 +274,8 @@ class ParseRules:
             or (line.strip() == '') or (line.find('.text') != -1) \
             or (line.find('.iar') != -1) or (line.find('Region') != -1) \
             or (line.find('...') != -1) \
-            or (line.find('file format') != -1)
+            or (line.find('file format') != -1) \
+            or (line.find('Disassembly') != -1)
             # or (line.find('__arm_cp') != -1 and line.find('>:') != -1)
         return res
 
@@ -299,21 +300,17 @@ class ParseRules:
             full_name = lin_split[1]
             # Exclude extra characters <>:
             full_name = full_name[1:-2]
-            if (self.benchmark == 'sglib_combined'):
-                if (full_name.find('sglib_') != -1):
-                    name = full_name[-31:]
-                excel.wksheet_names[full_name] = name
+            if len(full_name) > 30:
+                name = full_name[-31:]
             else:
                 name = full_name
-                excel.wksheet_names[full_name] = name
             # These are the same for any benchmark
             if (save_restore_en):
                 if (full_name[0:12] == '__riscv_save'):
                     name = '__riscv_save'
-                    excel.wksheet_names[full_name] = name
                 elif (full_name[0:15] == '__riscv_restore'):
                     name = '__riscv_restore'
-                    excel.wksheet_names[full_name] = name
+            excel.wksheet_names[full_name] = name
         elif (self.compiler == 'rviar'):
             full_name = lin_split[0]
             # Exclude '??' and ':' as needed
@@ -325,10 +322,9 @@ class ParseRules:
             elif (save_restore_en):
                 if (full_name[0:12] == '__riscv_save'):
                     name = '__riscv_save'
-                    excel.wksheet_names[full_name] = name
                 elif (full_name[0:15] == '__riscv_restore'):
                     name = '__riscv_restore'
-                    excel.wksheet_names[full_name] = name
+                excel.wksheet_names[full_name] = name
         elif (self.compiler[:3] == 'arm'):
             # Function name
             full_name = lin_split[1]
