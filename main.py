@@ -99,11 +99,13 @@ try:
         analyze.all_benchmarks(armbuild, rvbuild, benchmarkpath, output_file)
     else:
         analyze.single_benchmark(armbuild, rvbuild, benchmarkpath, output_file)
+
 except Exception:
     failure = True
     print('\n\n')
     traceback.print_exc()
     print('\n\n')
+
 finally:
     if (failure):
         print('Incomplete! See error or try again.')

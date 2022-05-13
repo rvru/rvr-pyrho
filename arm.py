@@ -53,6 +53,10 @@ def scan_arm_file(compiler, armfile, optfile):
         exit(0)
     func_opts = config.read_config(optfile)
 
+    funcs_to_parse = [func_opts[i][0] for i in func_opts.keys() if func_opts[i][1]]
+    if len(funcs_to_parse) == 0:
+        raise Exception('Please select at least one function to parse in ' + optfile)
+
     arm_results = {}
     arm_instr = {}
 
@@ -327,6 +331,10 @@ def scan_arm_file_data(compiler, armfile, optfile):
         print('\t', optfile)
         exit(0)
     func_opts = config.read_config(optfile)
+
+    funcs_to_parse = [func_opts[i][0] for i in func_opts.keys() if func_opts[i][1]]
+    if len(funcs_to_parse) == 0:
+        raise Exception('Please select at least one function to parse in ' + optfile)
 
     arm_results = {}
     arm_instr = {}

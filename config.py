@@ -69,6 +69,10 @@ def create_configurations(benchmarkdir):
     if not os.path.isdir(outdir):
         os.makedirs(outdir)
 
+    configdir = os.path.join(os.getcwd(), outdir, 'config')
+    if not os.path.isdir(configdir):
+        os.makedirs(configdir)
+
     filedirs = os.listdir(benchmarkdir)
     benchmarks = [f for f in filedirs if os.path.isdir(os.path.join(benchmarkdir, f))]
 
@@ -84,5 +88,5 @@ def create_configurations(benchmarkdir):
             build = builds[i]
             # print('\t' + build)
             assemblyfile = os.path.join(benchmarkpath, files[i])
-            optfile = os.path.join(outdir, benchmark + '_' + build + '_function_selection.txt')
+            optfile = os.path.join(configdir, benchmark + '_' + build + '_function_selection.txt')
             create_config(build, assemblyfile, optfile)

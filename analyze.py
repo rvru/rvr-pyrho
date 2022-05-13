@@ -84,8 +84,11 @@ def single_benchmark(armbuild, rvbuild, benchmarkpath, output_file):
     save_wksheet = save_restore_xlsx.create_sheet('__riscv_save')
     restore_wksheet = save_restore_xlsx.create_sheet('__riscv_restore')
 
-    rvoptfile = os.path.join(outdir, benchmark + '_' + rvbuild + '_function_selection.txt')
-    armoptfile = os.path.join(outdir, benchmark + '_' + armbuild + '_function_selection.txt')
+    configdir = os.path.join(os.getcwd(), outdir, 'config')
+    if not os.path.isdir(configdir):
+        os.makedirs(configdir)
+    rvoptfile = os.path.join(configdir, benchmark + '_' + rvbuild + '_function_selection.txt')
+    armoptfile = os.path.join(configdir, benchmark + '_' + armbuild + '_function_selection.txt')
 
     # Parse the input files
     res = riscv.scan_riscv_file(rvbuild, rvfile, rvoptfile)
@@ -161,6 +164,10 @@ def all_benchmarks(armbuild, rvbuild, benchmarkdir, output_file):
     output_file = os.path.join(outdir, output_file)
     excel.create_workbook(output_file)
 
+    configdir = os.path.join(os.getcwd(), outdir, 'config')
+    if not os.path.isdir(configdir):
+        os.makedirs(configdir)
+
     # Create Summary worksheet; write input files to A1, A2; set column sizes
     # Do this first so that it shows up as the first sheet in the workbook
     sum_wksheet = summary_xlsx.create_summary(True)
@@ -210,7 +217,7 @@ def all_benchmarks(armbuild, rvbuild, benchmarkdir, output_file):
             build = rvbuilds[i]
             # print('\t' + build)
             rvfile = os.path.join(benchmarkpath, rvfiles[i])
-            rvoptfile = os.path.join(outdir, benchmark + '_' + build + '_function_selection.txt')
+            rvoptfile = os.path.join(configdir, benchmark + '_' + build + '_function_selection.txt')
             # Parse the input files
             res = riscv.scan_riscv_file_data(build, rvfile, rvoptfile)
             # (size, reductions, pairs, instr, formats) = res
@@ -220,7 +227,7 @@ def all_benchmarks(armbuild, rvbuild, benchmarkdir, output_file):
             build = armbuilds[i]
             # print('\t' + build)
             armfile = os.path.join(benchmarkpath, armfiles[i])
-            armoptfile = os.path.join(outdir, benchmark + '_' + build + '_function_selection.txt')
+            armoptfile = os.path.join(configdir, benchmark + '_' + build + '_function_selection.txt')
             res = arm.scan_arm_file_data(build, armfile, armoptfile)
             results[build][benchmark] = res
 

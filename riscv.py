@@ -108,6 +108,10 @@ def scan_riscv_file(compiler, assemblyfile, optfile):
         exit(0)
     func_opts = config.read_config(optfile)
 
+    funcs_to_parse = [func_opts[i][0] for i in func_opts.keys() if func_opts[i][1]]
+    if len(funcs_to_parse) == 0:
+        raise Exception('Please select at least one function to parse in ' + optfile)
+
     # Initialize high-level data structures
     results = {}
     if (save_restore_en):
@@ -775,6 +779,10 @@ def scan_riscv_file_data(compiler, assemblyfile, optfile):
         print('\t', optfile)
         exit(0)
     func_opts = config.read_config(optfile)
+
+    funcs_to_parse = [func_opts[i][0] for i in func_opts.keys() if func_opts[i][1]]
+    if len(funcs_to_parse) == 0:
+        raise Exception('Please select at least one function to parse in ' + optfile)
 
     # Initialize high-level data structures
     results = {}
