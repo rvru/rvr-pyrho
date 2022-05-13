@@ -1,11 +1,21 @@
+"""
+RISC-V Disassembly Scanner Functions
+
+Author: Jennifer Hellar (jenniferhellar@proton.me)
+
+"""
+
+
 import importlib
 import os
 import re
 
+# local scripts
 import excel
 import cx
 import function_xlsx
 from constants import *
+import config
 
 ParseRules = getattr(importlib.import_module('parser'), 'ParseRules')
 
@@ -33,58 +43,10 @@ def update_tot(t_red, t_pair, t_instr, t_lbl, f_red, f_pair, f_instr, f_lbl):
     return (t_red, t_pair, t_instr, t_lbl)
 
 
-def create_optfile(compiler, benchmark, rvfile, optfile):
-    parse_rules = ParseRules(compiler, benchmark)
-
-    with open(optfile, 'a') as optf:
-        optf.write('{:<50}{:<30}{:<30}\n'.format('function', 'parse (Y/N)', 'sub-function (Y/N)'))
-
-    # Open the appropriate text file
-    f = open(rvfile)
-
-    parsing = False
-
-    for line in f:
-        if parse_rules.is_func_start(line):
-            if parse_rules.is_first(line):
-                parsing = True
-            (func_name, wksheet_name) = parse_rules.get_func_data(line)
-            sr_flag = save_restore_en and (wksheet_name.find('__riscv_save') != -1 \
-                    or wksheet_name.find('__riscv_restore') != -1)
-            with open(optfile, 'a') as optf:
-                if parsing or sr_flag:
-                    optf.write('{:<50}{:<30}{:<30}\n'.format(func_name, 'Y', 'N'))
-                else:
-                    optf.write('{:<50}{:<30}{:<30}\n'.format(func_name, 'N', 'N'))
-            if parse_rules.is_last(line):
-                parsing = False
-
-    f.close()
-    return
-
-
-def read_optfile(optfile):
-    opts = {}
-    fcnt = 0
-    header = True
-    with open(optfile, 'r') as f:
-        for line in f:
-            if header:
-                header = False
-                continue
-            linsplit = re.split(' ', line)
-            linsplit = [i.strip() for i in linsplit if i.strip() != '']
-            func_name, parse, subfunc = linsplit
-            parse = (parse == 'Y')
-            subfunc = (subfunc == 'Y')
-            opts[fcnt] = [func_name, parse, subfunc]
-            fcnt += 1
-    return opts
-
-
-def scan_riscv_file(compiler, benchmark, assemblyfile, optfile):
+def scan_riscv_file(compiler, assemblyfile, optfile):
     """
-    Opens and scans the RISC-V disassembly files to extract data.
+    Opens and scans the RISC-V disassembly file to extract data and update
+    Excel workbook.
 
     Function-Level Data Structures:
         - f_size: function size (in bytes)
@@ -140,8 +102,11 @@ def scan_riscv_file(compiler, benchmark, assemblyfile, optfile):
 
     optflag = os.path.exists(optfile)
     if not optflag:
-        create_optfile(compiler, benchmark, assemblyfile, optfile)
-    func_opts = read_optfile(optfile)
+        config.create_config(compiler, assemblyfile, optfile)
+        print('New function selection file(s) created. Please verify:')
+        print('\t', optfile)
+        exit(0)
+    func_opts = config.read_config(optfile)
 
     # Initialize high-level data structures
     results = {}
@@ -161,7 +126,7 @@ def scan_riscv_file(compiler, benchmark, assemblyfile, optfile):
             if (instr_lbl == lbl):
                 t_formats[lbl][instr] = 0
 
-    parse_rules = ParseRules(compiler, benchmark)
+    parse_rules = ParseRules(compiler)
 
     parsing = False
     last_saved = False
@@ -174,8 +139,7 @@ def scan_riscv_file(compiler, benchmark, assemblyfile, optfile):
                 nm, parse, subfunc = func_opts[fcnt]
                 fcnt += 1
                 if nm != fname:
-                    print('Error: function name does not match func_opts record')
-                    exit(0)
+                    raise Exception('Error: function name does not match func_opts record')
                 # done w/current if new function is not a subfunction or not set
                 # to parse
                 if parsing and (not subfunc or not parse):
@@ -762,9 +726,9 @@ def scan_riscv_file(compiler, benchmark, assemblyfile, optfile):
     return r
 
 
-def scan_riscv_file_data(compiler, benchmark, rvfile):
+def scan_riscv_file_data(compiler, assemblyfile, optfile):
     """
-    Opens and scans the RISC-V disassembly files to extract data.
+    Opens and scans the RISC-V disassembly file to extract data.
 
     Function-Level Data Structures:
         - f_size: function size (in bytes)
@@ -790,9 +754,8 @@ def scan_riscv_file_data(compiler, benchmark, rvfile):
             * Key: (instruction #1, instruction #2)
             * Val: [list of row locations in that function]
     Benchmark-Level Data Structures:
-        - results:
-            * Key: function name
-            * Val: (f_size, f_reductions, f_instr, f_formats, f_bits)
+        - t_size:
+            * Total code size of all parsed functions
         - t_reductions
             * Benchmark accumulator for f_reductions
         - t_pairs
@@ -804,6 +767,14 @@ def scan_riscv_file_data(compiler, benchmark, rvfile):
 
     Returns: (results, t_reductions, t_pairs, t_instr, t_formats)
     """
+
+    optflag = os.path.exists(optfile)
+    if not optflag:
+        config.create_config(compiler, assemblyfile, optfile)
+        print('New function selection file(s) created. Please verify:')
+        print('\t', optfile)
+        exit(0)
+    func_opts = config.read_config(optfile)
 
     # Initialize high-level data structures
     results = {}
@@ -823,44 +794,115 @@ def scan_riscv_file_data(compiler, benchmark, rvfile):
             if (instr_lbl == lbl):
                 t_formats[lbl][instr] = 0
 
-    parse_rules = ParseRules(compiler, benchmark)
-    # Open the appropriate text file
-    f = open(rvfile)
+    parse_rules = ParseRules(compiler)
 
-    wksheet_name = None
-    last_flag = False
+    parsing = False
+    last_saved = False
+    fcnt = 0
+    with open(assemblyfile, 'r') as f:
+        for line in f:
+            # found the start of a new function
+            if parse_rules.is_func_start(line):
+                (fname, wname) = parse_rules.get_func_data(line)
+                nm, parse, subfunc = func_opts[fcnt]
+                fcnt += 1
+                if nm != fname:
+                    raise Exception('Error: function name does not match func_opts record')
+                # done w/current if new function is not a subfunction or not set
+                # to parse
+                if parsing and (not subfunc or not parse):
+                    if (wksheet_name == '__riscv_save'):
+                        # increment total for save_0, save_1, etc.
+                        if (f_size > 0):
+                            curr = results['__riscv_save'][0]
+                            results['__riscv_save'] = (curr + f_size, {}, {}, {}, 0)
+                    elif (wksheet_name == '__riscv_restore'):
+                        # increment total for restore_0, restore_1, etc.
+                        if (f_size > 0):
+                            curr = results['__riscv_restore'][0]
+                            results['__riscv_restore'] = (curr + f_size, {}, {}, {}, 0)
+                    else:
+                        # If using cx.lwpc, need to check if offset width exceeded
+                        if lwpc_en[1]:
+                            (res, min_offset, f_bits) = cx.check_offsets(f_size,
+                                                                         f_reductions,
+                                                                         max_offset,
+                                                                         min_offset)
+                            # if number of bits too high, not able to us cx.lwpc
+                            if (res is False):
+                                f_reductions['cx.lwpc'] = 0
+                                # revert back to original 32-bit LW
+                                if 'lw' in f_instr.keys():
+                                    f_instr['lw'] += f_instr['cx.lwpc']
+                                else:
+                                    f_instr['lw'] = f_instr['cx.lwpc']
+                                f_instr['cx.lwpc'] = 0
+                                lwpc_fail = True
 
-    state = S_INIT
-    for line in f:
-        if (state == S_INIT):
-            transition = parse_rules.is_first(line)
-            if transition:
-                end = parse_rules.is_last(line)
-                if end:
-                    last_flag = True
-                # print("First function found.\n")
-                state = S_FUNC_START
-            else:
-                continue
-
-        if (state == S_WAIT):
-            # waiting for next function to start
-            transition = parse_rules.is_func_start(line)
-            if transition:
-                # check if it is the last function
-                end = parse_rules.is_last(line)
-                if end:
-                    last_flag = True
-                state = S_FUNC_START
-            else:
-                continue
-
-        if (state == S_FUNC_PARSE):
-            transition = parse_rules.is_func_end(line)
-            if transition:
-                # reached end of current function
-                state = S_FUNC_END
-            else:
+                        # Add function totals to the overall benchmark totals
+                        res = update_tot(t_reductions, t_pairs, t_instr,
+                                         t_formats, f_reductions, f_pairs,
+                                         f_instr, f_formats)
+                        (t_reductions, t_pairs, t_instr, t_formats) = res
+                        # Save the function results and record in Excel worksheet
+                        results[func_name] = (f_size, f_reductions, f_instr, f_formats,
+                                              f_bits)
+                    last_saved = True
+                # a new function to parse and not a subfunction
+                if parse and not subfunc:
+                    # Create and format new worksheet
+                    (func_name, wksheet_name) = parse_rules.get_func_data(line)
+                    if (wksheet_name == '__riscv_save'):
+                        f_size = 0
+                        state = S_FUNC_PARSE
+                        continue
+                    elif (wksheet_name == '__riscv_restore'):
+                        f_size = 0
+                        state = S_FUNC_PARSE
+                        continue
+                    elif (wksheet_name is not None):
+                        # Reset current function totals
+                        f_size = 0
+                        f_reductions = {}
+                        f_instr = {}
+                        f_formats = {}
+                        replaced_loc = {}
+                        not_repl_loc = {}
+                        f_pairs = {}
+                        pair_loc = {}
+                        prev_op = ''
+                        prev_args = []
+                        for instr in ENABLED:
+                            f_reductions[instr] = 0
+                            f_instr[instr] = 0
+                            replaced_loc[instr] = []
+                        for pair in PAIRS_ENABLED:
+                            pair_loc[pair] = []
+                        f_bits = 0
+                        for lbl in RV32_FORMATS:
+                            f_formats[lbl] = {}
+                            for instr in RV32_INSTR_FORMATS.keys():
+                                instr_lbl = RV32_INSTR_FORMATS[instr][0]
+                                if (instr_lbl == lbl):
+                                    f_formats[lbl][instr] = 0
+                        # Add entry for new function with default values
+                        results[func_name] = (f_size, f_reductions, f_instr, f_formats,
+                                              f_bits)
+                        # Reset offset trackers
+                        lwpc_fail = False
+                        max_offset = 0
+                        min_offset = float("inf")
+                    last_saved = False
+                    parsing = True
+                    continue
+                # a subfunction of the previous function
+                elif parse and subfunc:
+                    parsing = True
+                    continue
+                else:
+                    parsing = False
+                    continue
+            if parsing:
                 if parse_rules.is_skippable(line):
                     continue
                 # Extract instruction data from line of text and record
@@ -962,108 +1004,7 @@ def scan_riscv_file_data(compiler, benchmark, rvfile):
                 prev_args = args
                 continue
 
-        if (state == S_FUNC_END):
-            if (wksheet_name == '__riscv_save'):
-                # increment total for save_0, save_1, etc.
-                if (f_size > 0):
-                    curr = results['__riscv_save'][0]
-                    results['__riscv_save'] = (curr + f_size, {}, {}, {}, 0)
-            elif (wksheet_name == '__riscv_restore'):
-                # increment total for restore_0, restore_1, etc.
-                if (f_size > 0):
-                    curr = results['__riscv_restore'][0]
-                    results['__riscv_restore'] = (curr + f_size, {}, {}, {}, 0)
-            else:
-                # If using cx.lwpc, need to check if offset width exceeded
-                if lwpc_en[1]:
-                    (res, min_offset, f_bits) = cx.check_offsets(f_size,
-                                                                 f_reductions,
-                                                                 max_offset,
-                                                                 min_offset)
-                    # if number of bits too high, not able to us cx.lwpc
-                    if (res is False):
-                        f_reductions['cx.lwpc'] = 0
-                        # revert back to original 32-bit LW
-                        if 'lw' in f_instr.keys():
-                            f_instr['lw'] += f_instr['cx.lwpc']
-                        else:
-                            f_instr['lw'] = f_instr['cx.lwpc']
-                        f_instr['cx.lwpc'] = 0
-                        lwpc_fail = True
-
-                # Add function totals to the overall benchmark totals
-                res = update_tot(t_reductions, t_pairs, t_instr,
-                                 t_formats, f_reductions, f_pairs,
-                                 f_instr, f_formats)
-                (t_reductions, t_pairs, t_instr, t_formats) = res
-                # Save the function results and record in Excel worksheet
-                results[func_name] = (f_size, f_reductions, f_instr, f_formats,
-                                      f_bits)
-            # Indicate successful completion of last function
-            if (last_flag is True):
-                state = S_END
-                break
-            # Or continue to next function
-            else:
-                if parse_rules.is_func_start(line):
-                    end = parse_rules.is_last(line)
-                    if end:
-                        last_flag = True
-                    state = S_FUNC_START
-                else:
-                    state = S_WAIT
-                    continue
-
-        if (state == S_FUNC_START):
-            # Create and format new worksheet
-            (func_name, wksheet_name) = parse_rules.get_func_data(line)
-            if (wksheet_name == '__riscv_save'):
-                f_size = 0
-                state = S_FUNC_PARSE
-                continue
-            elif (wksheet_name == '__riscv_restore'):
-                f_size = 0
-                state = S_FUNC_PARSE
-                continue
-            elif (wksheet_name is not None):
-                # Reset current function totals
-                f_size = 0
-                f_reductions = {}
-                f_instr = {}
-                f_formats = {}
-                replaced_loc = {}
-                not_repl_loc = {}
-                f_pairs = {}
-                pair_loc = {}
-                prev_op = ''
-                prev_args = []
-                for instr in ENABLED:
-                    f_reductions[instr] = 0
-                    f_instr[instr] = 0
-                    replaced_loc[instr] = []
-                for pair in PAIRS_ENABLED:
-                    pair_loc[pair] = []
-                f_bits = 0
-                for lbl in RV32_FORMATS:
-                    f_formats[lbl] = {}
-                    for instr in RV32_INSTR_FORMATS.keys():
-                        instr_lbl = RV32_INSTR_FORMATS[instr][0]
-                        if (instr_lbl == lbl):
-                            f_formats[lbl][instr] = 0
-                # Add entry for new function with default values
-                results[func_name] = (f_size, f_reductions, f_instr, f_formats,
-                                      f_bits)
-                # Reset offset trackers
-                lwpc_fail = False
-                max_offset = 0
-                min_offset = float("inf")
-                state = S_FUNC_PARSE
-                continue
-            else:
-                state = S_WAIT
-                continue
-    # Catch any function that occurs at the end of the file and save results
-    if (state != S_END) and (wksheet_name is not None):
+    if not last_saved:
         if (wksheet_name == '__riscv_save'):
             # increment total for save_0, save_1, etc.
             if (f_size > 0):
@@ -1100,7 +1041,6 @@ def scan_riscv_file_data(compiler, benchmark, rvfile):
             # Save the function results and record in Excel worksheet
             results[func_name] = (f_size, f_reductions, f_instr, f_formats,
                                   f_bits)
-
     # Only allow the first BR_KEEP (%) of each type of branch to be compressed
     for br_instr in BR_ENABLED:
         if br_instr in t_instr.keys():
@@ -1148,8 +1088,6 @@ def scan_riscv_file_data(compiler, benchmark, rvfile):
             res = update_tot(t_reductions, t_pairs, t_instr, t_formats,
                              results['__riscv_restore'][1], {}, {}, {})
             (t_reductions, t_pairs, t_instr, t_formats) = res
-
-    f.close()
 
     t_size = 0
     for func in results.keys():

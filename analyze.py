@@ -1,17 +1,18 @@
-# Built-in libraries to handle command line inputs/outputs/execution results
-import argparse
-import os
-import traceback
-import re
+"""
+Single benchmark or benchmark suite-level analysis functions.
 
-# Built-in library to create/write to Excel file
-import xlsxwriter
+Author: Jennifer Hellar (jenniferhellar@proton.me)
+
+"""
+
+
+# Built-in libraries to handle command line inputs/outputs/execution results
+import os
+import re
 
 # Supplementary python scripts
 import summary_xlsx
 import save_restore_xlsx
-import function_xlsx
-import cx
 import excel
 import arm
 import riscv
@@ -27,13 +28,8 @@ def single_benchmark(armbuild, rvbuild, benchmarkpath, output_file):
 
     # Check the inputs
     if (benchmark not in BENCHMARKS):
-        print('Unknown benchmark: ', benchmark)
-        exit()
-    # if filename[:5] != 'rvgcc' and filename[-15:] != 'disassembly.txt':
-    #     print('Incorrect input file type.' +
-    #           'Expected file beginning in \'rvgcc\'' +
-    #           'and ending in \'disassembly.txt\'')
-    #     exit()
+        raise Exception('Unknown benchmark ' + benchmark + '. Please choose from:\n\t[' + ', '.join(BENCHMARKS) + ']')
+
     files = os.listdir(benchmarkpath)
     files = [i for i in files if i.find('disassembly') != -1]
 
@@ -44,22 +40,16 @@ def single_benchmark(armbuild, rvbuild, benchmarkpath, output_file):
     armbuilds = [i[:i.index('_')] for i in armfiles]
 
     if rvbuild not in rvbuilds:
-        print('\nRISC-V disassembly for \'' + rvbuild + '\' unavailable. Please compile or choose from:')
-        print('\t', rvbuilds, '\n')
-        exit()
+        raise Exception('RISC-V disassembly for \'' + rvbuild + '\' unavailable. Please compile or choose from:\n\t[' + ', '.join(rvbuilds) + ']')
     if armbuild not in armbuilds:
-        print('\nARM disassembly for \'' + armbuild + '\' unavailable. Please compile or choose from:')
-        print('\t', armbuilds, '\n')
-        exit()
+        raise Exception('ARM disassembly for \'' + armbuild + '\' unavailable. Please compile or choose from:\n\t[' + ', '.join(armbuilds) + ']')
 
     rvfile = os.path.join(benchmarkpath, rvbuild + '_' + benchmark + '_disassembly.txt')
     armfile = os.path.join(benchmarkpath, armbuild + '_' + benchmark + '_disassembly.txt')
     if (os.path.exists(rvfile) is False):
-        print('\nUnable to find expected RISC-V disassembly:\n\t', rvfile, '\n')
-        exit()
+        raise Exception('Unable to find expected RISC-V disassembly:\n\t' + rvfile)
     if (os.path.exists(armfile) is False):
-        print('\nUnable to find expected ARM disassembly:\n\t', armfile, '\n')
-        exit()
+        raise Exception('Unable to find expected Arm disassembly:\n\t' + armfile)
 
     """ Excel Workbook Creation """
 
@@ -98,21 +88,13 @@ def single_benchmark(armbuild, rvbuild, benchmarkpath, output_file):
     armoptfile = os.path.join(outdir, benchmark + '_' + armbuild + '_function_selection.txt')
 
     # Parse the input files
-    res = riscv.scan_riscv_file(rvbuild, benchmark, rvfile, rvoptfile)
-    (gcc_results, gcc_reductions, gcc_pairs, gcc_instr, gcc_formats) = res
+    res = riscv.scan_riscv_file(rvbuild, rvfile, rvoptfile)
+    (riscv_results, riscv_reductions, riscv_pairs, riscv_instr, riscv_formats) = res
 
-    # for instr in sorted(gcc_instr.keys()):
-    #     print("{:<30}{:<30}".format(instr, gcc_instr[instr]))
+    # for instr in sorted(riscv_instr.keys()):
+    #     print("{:<30}{:<30}".format(instr, riscv_instr[instr]))
 
-    arm_results = arm.scan_arm_file(armbuild, benchmark, armfile, armoptfile)
-
-    # if (IAR is True):
-    #     parse_rules.compiler = 'IAR'
-    #     res = scan_riscv_file('IAR')
-    #     (iar_results, iar_reductions, iar_pairs, iar_instr, iar_formats) = res
-
-      # for instr in sorted(iar_instr.keys()):
-      #     print("{:<30}{:<30}".format(instr, iar_instr[instr]))
+    arm_results = arm.scan_arm_file(armbuild, armfile, armoptfile)
 
     # Add the main table to record individual function totals
     row = 18
@@ -125,65 +107,42 @@ def single_benchmark(armbuild, rvbuild, benchmarkpath, output_file):
     summary_xlsx.add_totals_table(row, col, False, rvbuild, armbuild)
 
     # Write out the results to the Summary worksheet
-    summary_xlsx.record_rvgcc_data(gcc_results, gcc_reductions, rvbuild)
-    summary_xlsx.record_arm_data(gcc_results, arm_results, rvbuild, armbuild)
-    # if (IAR is True):
-    #     summary_xlsx.record_iar_data(gcc_results, iar_results)
+    summary_xlsx.record_rvgcc_data(riscv_results, riscv_reductions, rvbuild)
+    summary_xlsx.record_arm_data(riscv_results, arm_results, rvbuild, armbuild)
 
     # Record replaced instruction performance
-    reductions = [gcc_reductions]
-    if (IAR is True):
-        reductions.append(iar_reductions)
+    reductions = [riscv_reductions]
     summary_xlsx.add_replaced_instr_table(reductions, rvbuild, armbuild)
 
     # Add a chart to visualize the replaced instruction performance
     compilers = [rvbuild]
-    # if (IAR is True):
-    #     compilers.append('IAR')
     summary_xlsx.add_replaced_instr_chart(compilers)
 
     # Record the rules used to implement new replaced instructions
     summary_xlsx.add_replacement_rules_table()
 
     # Record the frequency of instructions
-    summary_xlsx.add_total_instr_table(gcc_instr, 20, rvbuild)
-    # if (IAR is True):
-    #     summary_xlsx.add_total_instr_table(iar_instr, 20, 'IAR')
+    summary_xlsx.add_total_instr_table(riscv_instr, 20, rvbuild)
 
     # Record the frequency of instruction pairs
-    summary_xlsx.add_pairs_table(gcc_pairs, 20, rvbuild, armbuild)
-    # if (IAR is True):
-    #     summary_xlsx.add_pairs_table(iar_pairs, 20, 'IAR')
+    summary_xlsx.add_pairs_table(riscv_pairs, 20, rvbuild, armbuild)
 
     # Record the frequency of instruction formats to 'tmp' worksheet
-    formats = [gcc_formats]
-    # if (IAR is True):
-    #     formats.append(iar_formats)
+    formats = [riscv_formats]
     summary_xlsx.add_instr_formats_tables(formats, compilers)
 
     # Add a chart to visualize the instruction format frequency distribution
     summary_xlsx.add_instr_formats_radar(rvbuild)
-    # if (IAR is True):
-    #     summary_xlsx.add_instr_formats_radar('IAR')
 
     # Record function contribution to overshooting ARM code size
-    summary_xlsx.add_overshoot_table(gcc_results, arm_results, 5, rvbuild)
-    # if (IAR is True):
-    #     summary_xlsx.add_overshoot_table(iar_results, arm_results, 5, 'IAR')
+    summary_xlsx.add_overshoot_table(riscv_results, arm_results, 5, rvbuild)
 
     # Add a chart to visualize the function overshoot over ARM code size
     summary_xlsx.add_overshoot_chart(rvbuild)
-    # if (IAR is True):
-    #     summary_xlsx.add_overshoot_chart('IAR')
 
     excel.close_workbook()
-    if not os.path.isdir('results'):
-        os.makedirs('results')
-    # os.system("cp " + output_file + " results/.")
     print('\nComplete! See Excel workbook: ')
     print('\t' + output_file)
-    print('\t' + 'results/' + benchmark + '_analysis.xlsx')
-    # os.system("open " + output_file)
 
 
 def all_benchmarks(armbuild, rvbuild, benchmarkdir, output_file):
@@ -251,8 +210,9 @@ def all_benchmarks(armbuild, rvbuild, benchmarkdir, output_file):
             build = rvbuilds[i]
             # print('\t' + build)
             rvfile = os.path.join(benchmarkpath, rvfiles[i])
+            rvoptfile = os.path.join(outdir, benchmark + '_' + build + '_function_selection.txt')
             # Parse the input files
-            res = riscv.scan_riscv_file_data(build, benchmark, rvfile)
+            res = riscv.scan_riscv_file_data(build, rvfile, rvoptfile)
             # (size, reductions, pairs, instr, formats) = res
             results[build][benchmark] = res
 
@@ -260,73 +220,12 @@ def all_benchmarks(armbuild, rvbuild, benchmarkdir, output_file):
             build = armbuilds[i]
             # print('\t' + build)
             armfile = os.path.join(benchmarkpath, armfiles[i])
-            res = arm.scan_arm_file_data(build, benchmark, armfile)
+            armoptfile = os.path.join(outdir, benchmark + '_' + build + '_function_selection.txt')
+            res = arm.scan_arm_file_data(build, armfile, armoptfile)
             results[build][benchmark] = res
 
         # print('\n')
     summary_xlsx.record_all_main(results, benchmarks)
-    exit(0)
-
-
-
-
-    # Write out the results to the Summary worksheet
-    summary_xlsx.record_rvgcc_data(gcc_results, gcc_reductions, rvbuild)
-    summary_xlsx.record_arm_data(gcc_results, arm_results, rvbuild, armbuild)
-    # if (IAR is True):
-    #     summary_xlsx.record_iar_data(gcc_results, iar_results)
-
-    # Record replaced instruction performance
-    reductions = [gcc_reductions]
-    if (IAR is True):
-        reductions.append(iar_reductions)
-    summary_xlsx.add_replaced_instr_table(reductions, rvbuild, armbuild)
-
-    # Add a chart to visualize the replaced instruction performance
-    compilers = [rvbuild]
-    # if (IAR is True):
-    #     compilers.append('IAR')
-    summary_xlsx.add_replaced_instr_chart(compilers)
-
-    # Record the rules used to implement new replaced instructions
-    summary_xlsx.add_replacement_rules_table()
-
-    # Record the frequency of instructions
-    summary_xlsx.add_total_instr_table(gcc_instr, 20, rvbuild)
-    # if (IAR is True):
-    #     summary_xlsx.add_total_instr_table(iar_instr, 20, 'IAR')
-
-    # Record the frequency of instruction pairs
-    summary_xlsx.add_pairs_table(gcc_pairs, 20, rvbuild, armbuild)
-    # if (IAR is True):
-    #     summary_xlsx.add_pairs_table(iar_pairs, 20, 'IAR')
-
-    # Record the frequency of instruction formats to 'tmp' worksheet
-    formats = [gcc_formats]
-    # if (IAR is True):
-    #     formats.append(iar_formats)
-    summary_xlsx.add_instr_formats_tables(formats, compilers)
-
-    # Add a chart to visualize the instruction format frequency distribution
-    summary_xlsx.add_instr_formats_radar(rvbuild)
-    # if (IAR is True):
-    #     summary_xlsx.add_instr_formats_radar('IAR')
-
-    # Record function contribution to overshooting ARM code size
-    summary_xlsx.add_overshoot_table(gcc_results, arm_results, 5, rvbuild)
-    # if (IAR is True):
-    #     summary_xlsx.add_overshoot_table(iar_results, arm_results, 5, 'IAR')
-
-    # Add a chart to visualize the function overshoot over ARM code size
-    summary_xlsx.add_overshoot_chart(rvbuild)
-    # if (IAR is True):
-    #     summary_xlsx.add_overshoot_chart('IAR')
-
     excel.close_workbook()
-    if not os.path.isdir('results'):
-        os.makedirs('results')
-    os.system("cp " + output_file + " results/.")
     print('\nComplete! See Excel workbook: ')
     print('\t' + output_file)
-    print('\t' + 'results/' + benchmark + '_analysis.xlsx')
-    # os.system("open " + output_file)
