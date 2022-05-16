@@ -7,7 +7,7 @@ This file defines all of the constant variables used throughout the program.
 Author: Jennifer Hellar (jennifer.hellar@rice.edu)
 
 """
-BENCHMARKS = ['fir_filter', 'waterman'
+BENCHMARKS = ['fir_filter', 'waterman',
     'aha_mont64', 'crc32', 'cubic', 'edn', 'huffbench', 'matmult_int',
     'minver', 'nbody', 'nettle_aes', 'nettle_sha256', 'nsichneu', 'picojpeg',
     'qrduino', 'sglib_combined', 'slre', 'st', 'statemate', 'ud', 'wikisort']
