@@ -100,12 +100,6 @@ def scan_riscv_file(compiler, assemblyfile, optfile):
     data11 = 0
     data12 = 0
 
-    optflag = os.path.exists(optfile)
-    if not optflag:
-        config.create_config(compiler, assemblyfile, optfile)
-        print('New function selection file(s) created. Please verify:')
-        print('\t', optfile)
-        exit(0)
     func_opts = config.read_config(optfile)
 
     funcs_to_parse = [func_opts[i][0] for i in func_opts.keys() if func_opts[i][1]]

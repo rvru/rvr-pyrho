@@ -7,14 +7,11 @@ This file defines all of the constant variables used throughout the program.
 Author: Jennifer Hellar (jennifer.hellar@rice.edu)
 
 """
-SOURCES = ['hydra']
-BENCHMARKS = ['WatermanBenchmark', 'fir_filter',
+BENCHMARKS = ['fir_filter', 'waterman'
     'aha_mont64', 'crc32', 'cubic', 'edn', 'huffbench', 'matmult_int',
     'minver', 'nbody', 'nettle_aes', 'nettle_sha256', 'nsichneu', 'picojpeg',
     'qrduino', 'sglib_combined', 'slre', 'st', 'statemate', 'ud', 'wikisort']
 BUILDS = ['rvgcc', 'armcc', 'armclang', 'armgcc']
-
-IAR = False
 
 """ Enable Desired Compact Instructions """
 lwpc_en = ('cx.lwpc', True)
@@ -93,16 +90,6 @@ PAIRS_ENABLED = [i[0] for i in pair_en_lst if (i[1] is True)]
 
 # Allowed register list for compact instructions
 REG_LIST = ['s0', 's1', 'a0', 'a1', 'a2', 'a3', 'a4', 'a5']
-
-""" Define states for parsing assembly """
-S_INIT = "STATE: INITIAL"
-S_FIRST = "STATE: FIRST FUNCTION"
-S_FUNC_START = "STATE: NEW FUNCTION"
-S_FUNC_PARSE = "STATE: PARSING"
-S_FUNC_END = "STATE: FUNCTION END"
-S_WAIT = "STATE: WAIT BETWEEN FUNCTIONS"
-S_LAST = "STATE: LAST FUNCTION"
-S_END = "STATE: END"
 
 """ Define Instruction Formats and Mappings """
 
@@ -234,7 +221,7 @@ RV32C_INSTR_FORMATS = {
 # IMPORTANT: All table names must be unique (dictionary keys in excel.py)
 
 # Table titles for the Summary page
-SUMMARY_TOTALS_TABLE = 'Benchmark Performance (RISC-V vs. ARM)'
+SUMMARY_TOTALS_TABLE = 'Benchmark Totals'
 SUMMARY_MAIN_TABLE = 'Function Sizes (bytes)'
 
 SUMMARY_INSTR_TABLE = 'Compressed Extension Reductions'

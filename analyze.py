@@ -16,6 +16,7 @@ import save_restore_xlsx
 import excel
 import arm
 import riscv
+import config
 from constants import *
 
 
@@ -81,21 +82,27 @@ def single_benchmark(armbuild, rvbuild, benchmarkpath, output_file):
     tmp_wksheet.write_column('B1', data[1])
 
     # Create the __riscv_save and __riscv_restore worksheets
-    save_wksheet = save_restore_xlsx.create_sheet('__riscv_save')
-    restore_wksheet = save_restore_xlsx.create_sheet('__riscv_restore')
+    if save_restore_en:
+        save_wksheet = save_restore_xlsx.create_sheet('__riscv_save')
+        restore_wksheet = save_restore_xlsx.create_sheet('__riscv_restore')
 
     configdir = os.path.join(os.getcwd(), outdir, 'config')
-    if not os.path.isdir(configdir):
-        os.makedirs(configdir)
-    rvoptfile = os.path.join(configdir, benchmark + '_' + rvbuild + '_function_selection.txt')
-    armoptfile = os.path.join(configdir, benchmark + '_' + armbuild + '_function_selection.txt')
+    masteropt = os.path.join(configdir, benchmark + '_master_selection.txt')
 
+    rvoptfile = os.path.join(configdir, benchmark + '_' + rvbuild + '_function_selection.txt')
+    optflag = os.path.exists(rvoptfile)
+    if not optflag:
+        config.create_subconfig(rvbuild, rvfile, rvoptfile, masteropt)
     # Parse the input files
     res = riscv.scan_riscv_file(rvbuild, rvfile, rvoptfile)
     (riscv_results, riscv_reductions, riscv_pairs, riscv_instr, riscv_formats) = res
 
     # for instr in sorted(riscv_instr.keys()):
     #     print("{:<30}{:<30}".format(instr, riscv_instr[instr]))
+    armoptfile = os.path.join(configdir, benchmark + '_' + armbuild + '_function_selection.txt')
+    optflag = os.path.exists(armoptfile)
+    if not optflag:
+        config.create_subconfig(armbuild, armfile, armoptfile, masteropt)
 
     arm_results = arm.scan_arm_file(armbuild, armfile, armoptfile)
 
@@ -155,8 +162,6 @@ def all_benchmarks(armbuild, rvbuild, benchmarkdir, output_file):
 
     # Default to same directory as input
     outdir = os.path.join(os.getcwd(), 'results')
-    if not os.path.isdir(outdir):
-        os.makedirs(outdir)
     if output_file is None:
     	output_file = 'all_benchmarks_analysis.xlsx'
     if output_file[-5:] != '.xlsx':
@@ -165,8 +170,6 @@ def all_benchmarks(armbuild, rvbuild, benchmarkdir, output_file):
     excel.create_workbook(output_file)
 
     configdir = os.path.join(os.getcwd(), outdir, 'config')
-    if not os.path.isdir(configdir):
-        os.makedirs(configdir)
 
     # Create Summary worksheet; write input files to A1, A2; set column sizes
     # Do this first so that it shows up as the first sheet in the workbook
@@ -180,22 +183,23 @@ def all_benchmarks(armbuild, rvbuild, benchmarkdir, output_file):
     # Add the totals table to record overall benchmark totals
     row = 3
     col = 1
-    summary_xlsx.add_totals_table(row, col, True)
+    summary_xlsx.add_totals_table(row, col, True, rvbuild, armbuild)
 
-    # Use an empty worksheet to calculate the pie segments for radar plots
-    tmp_wksheet = excel.wkbook.add_worksheet('tmp')
-    segments = [0] * len(RV32_FORMATS)
-    for instr in RV32_INSTR_FORMATS.keys():
-        lbl = RV32_INSTR_FORMATS[instr][0]
-        if lbl in RV32_FORMATS:
-            idx = RV32_FORMATS.index(lbl)
-            segments[idx] += 1
-    data = [RV32_FORMATS, segments]
-    tmp_wksheet.write_column('A1', data[0])
-    tmp_wksheet.write_column('B1', data[1])
+    # # Use an empty worksheet to calculate the pie segments for radar plots
+    # tmp_wksheet = excel.wkbook.add_worksheet('tmp')
+    # segments = [0] * len(RV32_FORMATS)
+    # for instr in RV32_INSTR_FORMATS.keys():
+    #     lbl = RV32_INSTR_FORMATS[instr][0]
+    #     if lbl in RV32_FORMATS:
+    #         idx = RV32_FORMATS.index(lbl)
+    #         segments[idx] += 1
+    # data = [RV32_FORMATS, segments]
+    # tmp_wksheet.write_column('A1', data[0])
+    # tmp_wksheet.write_column('B1', data[1])
 
     filedirs = os.listdir(benchmarkdir)
     benchmarks = [f for f in filedirs if os.path.isdir(os.path.join(benchmarkdir, f))]
+    benchmarks.sort()
 
     results = {}
     for build in BUILDS:
@@ -213,11 +217,16 @@ def all_benchmarks(armbuild, rvbuild, benchmarkdir, output_file):
         rvbuilds = [i[:i.index('_')] for i in rvfiles]
         armbuilds = [i[:i.index('_')] for i in armfiles]
 
+        masteropt = os.path.join(configdir, benchmark + '_master_selection.txt')
+
         for i in range(len(rvbuilds)):
             build = rvbuilds[i]
             # print('\t' + build)
             rvfile = os.path.join(benchmarkpath, rvfiles[i])
             rvoptfile = os.path.join(configdir, benchmark + '_' + build + '_function_selection.txt')
+            optflag = os.path.exists(rvoptfile)
+            if not optflag:
+                config.create_subconfig(build, rvfile, rvoptfile, masteropt)
             # Parse the input files
             res = riscv.scan_riscv_file_data(build, rvfile, rvoptfile)
             # (size, reductions, pairs, instr, formats) = res
@@ -228,6 +237,9 @@ def all_benchmarks(armbuild, rvbuild, benchmarkdir, output_file):
             # print('\t' + build)
             armfile = os.path.join(benchmarkpath, armfiles[i])
             armoptfile = os.path.join(configdir, benchmark + '_' + build + '_function_selection.txt')
+            optflag = os.path.exists(armoptfile)
+            if not optflag:
+                config.create_subconfig(build, armfile, armoptfile, masteropt)
             res = arm.scan_arm_file_data(build, armfile, armoptfile)
             results[build][benchmark] = res
 

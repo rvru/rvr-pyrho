@@ -324,12 +324,6 @@ def scan_arm_file_data(compiler, armfile, optfile):
 
     Returns: t_size
     """
-    optflag = os.path.exists(optfile)
-    if not optflag:
-        config.create_config(compiler, armfile, optfile)
-        print('New function selection file(s) created. Please verify:')
-        print('\t', optfile)
-        exit(0)
     func_opts = config.read_config(optfile)
 
     funcs_to_parse = [func_opts[i][0] for i in func_opts.keys() if func_opts[i][1]]

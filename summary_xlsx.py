@@ -86,8 +86,8 @@ def add_totals_table(row, col, allflag, rvbuild=None, armbuild=None):
     if allflag:
         headers = [''] + BUILDS
         row_labels = ['Totals (bytes)',
-                      '% of armcc',
-                      '% of rvgcc']
+                      '% of ' + armbuild,
+                      '% of ' + rvbuild]
     else:
         headers = ['',
                    armbuild,
@@ -113,14 +113,14 @@ def add_totals_table(row, col, allflag, rvbuild=None, armbuild=None):
             cell = excel.get_table_cell(table, build, 'Totals (bytes)')
             excel.sum_col(wksheet, SUMMARY_MAIN_TABLE, build, cell)
             # Add formulas for the % of armcc row
-            denom_cell = excel.get_table_cell(table, 'armcc', 'Totals (bytes)')
+            denom_cell = excel.get_table_cell(table, armbuild, 'Totals (bytes)')
             num_cell = excel.get_table_cell(table, build, 'Totals (bytes)')
-            dest_cell = excel.get_table_cell(table, build, '% of armcc')
+            dest_cell = excel.get_table_cell(table, build, '% of '+armbuild)
             excel.record_percentage(wksheet, num_cell, denom_cell, dest_cell, 1, False)
             # Add formulas for the % of rvgcc row
-            denom_cell = excel.get_table_cell(table, 'rvgcc', 'Totals (bytes)')
+            denom_cell = excel.get_table_cell(table, rvbuild, 'Totals (bytes)')
             num_cell = excel.get_table_cell(table, build, 'Totals (bytes)')
-            dest_cell = excel.get_table_cell(table, build, '% of rvgcc')
+            dest_cell = excel.get_table_cell(table, build, '% of '+rvbuild)
             excel.record_percentage(wksheet, num_cell, denom_cell, dest_cell, 1, False)
     else:
         # Add formulas for the Totals row
@@ -592,7 +592,7 @@ def add_pairs_table(pairs, keep, compiler, armbuild):
         if names[i] != 'other':
             (prev, curr) = names[i]
             # nm = prev + ' -> ' + curr
-            nm = '{:<15}{:^15}{:>15}'.format(prev, '->', curr)
+            nm = '{:<15}{:<15}{:<15}'.format(prev, '->', curr)
         else:
             nm = names[i]
         wksheet.write_string(name_cell, nm, excel.header_format)

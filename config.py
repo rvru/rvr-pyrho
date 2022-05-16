@@ -36,10 +36,38 @@ def create_config(compiler, assemblyfile, optfile):
                 else:
                     subfunc = 'N'
                 with open(optfile, 'a') as optf:
-                    if sr_flag:
-                        optf.write('{:<50}{:<30}{:<30}\n'.format(func_name, parse, subfunc))
-                    else:
-                        optf.write('{:<50}{:<30}{:<30}\n'.format(func_name, parse, subfunc))
+                    optf.write('{:<50}{:<30}{:<30}\n'.format(func_name, parse, subfunc))
+
+    return
+
+
+def create_subconfig(compiler, assemblyfile, optfile, masteropt):
+    parse_rules = ParseRules(compiler)
+
+    with open(optfile, 'w') as optf:
+        optf.write('{:<50}{:<30}{:<30}\n'.format('function', 'parse (Y/N)', 'sub-function (Y/N)'))
+
+    opts = read_config(masteropt)
+    funcs_to_parse = [opts[i][0] for i in opts.keys() if opts[i][1]]
+
+    parse = 'N'
+
+    # Open the appropriate text file
+    with open(assemblyfile, 'r') as f:
+        for line in f:
+            if parse_rules.is_func_start(line):
+                (func_name, wksheet_name) = parse_rules.get_func_data(line)
+                if (compiler == 'armclang') and func_name.find('__arm_cp.') != -1:
+                    subfunc = 'Y'
+                else:
+                    subfunc = 'N'
+                if (func_name in funcs_to_parse) \
+                    or (parse == 'Y' and subfunc == 'Y'):
+                    parse = 'Y'
+                else:
+                    parse = 'N'
+                with open(optfile, 'a') as optf:
+                    optf.write('{:<50}{:<30}{:<30}\n'.format(func_name, parse, subfunc))
 
     return
 
@@ -63,15 +91,30 @@ def read_config(optfile):
     return opts
 
 
-def create_configurations(benchmarkdir):
+def create_configuration(benchmarkpath):
     # Default to same directory as input
     outdir = os.path.join(os.getcwd(), 'results')
-    if not os.path.isdir(outdir):
-        os.makedirs(outdir)
-
     configdir = os.path.join(os.getcwd(), outdir, 'config')
     if not os.path.isdir(configdir):
         os.makedirs(configdir)
+
+    if benchmarkpath[-1] != '/':
+        benchmarkpath += '/'
+    lin_split = re.split('/', benchmarkpath[::-1], maxsplit=2)
+    benchmark = lin_split[-2][::-1]
+
+    files = os.listdir(benchmarkpath)
+    files = [i for i in files if i.find('disassembly') != -1]
+
+    builds = [i[:i.index('_')] for i in files]
+
+    rvgccfile = [i for i in files if i.find('rvgcc') != -1][0]
+    assemblyfile = os.path.join(benchmarkpath, rvgccfile)
+    masteropt = os.path.join(configdir, benchmark + '_' + 'master_selection.txt')
+    create_config('rvgcc', assemblyfile, masteropt)
+
+
+def create_configurations(benchmarkdir):
 
     filedirs = os.listdir(benchmarkdir)
     benchmarks = [f for f in filedirs if os.path.isdir(os.path.join(benchmarkdir, f))]
@@ -79,14 +122,4 @@ def create_configurations(benchmarkdir):
     for benchmark in benchmarks:
         print(benchmark)
         benchmarkpath = os.path.join(benchmarkdir, benchmark)
-        files = os.listdir(benchmarkpath)
-        files = [i for i in files if i.find('disassembly') != -1]
-
-        builds = [i[:i.index('_')] for i in files]
-
-        for i in range(len(builds)):
-            build = builds[i]
-            # print('\t' + build)
-            assemblyfile = os.path.join(benchmarkpath, files[i])
-            optfile = os.path.join(configdir, benchmark + '_' + build + '_function_selection.txt')
-            create_config(build, assemblyfile, optfile)
+        create_configuration(benchmarkpath)
