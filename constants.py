@@ -130,7 +130,6 @@ RV32_INSTR_FORMATS = {
     'jalr':     ['I-OP'],
     'fence':    ['I-OP'],
     'fence.i':  ['I-OP'],
-    'zext.b':   ['I-OP'],
     'ecall':    ['I-ENV'],
     'ebreak':   ['I-ENV'],
     'csrrw':    ['I-CSR'],
