@@ -38,9 +38,8 @@ pyrho [path-to-benchmarks] --configure
 	4. Select desired RVCX options in pyrho/constants.py
 	5. Analyze single or all benchmarks as desired.
 
-usage: pyrho [-h] [-c] [-a] [--armbuild ARMBUILD] [--rvbuild RVBUILD] \
-               [-o OUTFILE] \
-               benchmark \
+usage: pyrho [-h] [-c] [-a] [--armbuild ARMBUILD] [--rvbuild RVBUILD]
+	[-o OUTFILE] benchmark \
 
 PyRho, A Code Density Analyzer \
 
