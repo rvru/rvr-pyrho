@@ -190,9 +190,6 @@ def add_replaced_instr_table(reductions, rvbuild, armbuild):
         3 columns over from Totals/Main table (whichever is wider)
 
     """
-    gcc_reductions = reductions[0]
-    # if (IAR is True):
-    #     iar_reductions = reductions[1]
     # Set the table location and column headers
     coord = excel.get_table_loc(SUMMARY_TOTALS_TABLE)
     table_row = coord[0]
@@ -200,31 +197,21 @@ def add_replaced_instr_table(reductions, rvbuild, armbuild):
     headers = ['Instruction',
                rvbuild + ' reduction',
                rvbuild + ' percentage']
-    # if (IAR is True):
-    #     headers.append('IAR Reduction')
-    #     headers.append('IAR Percentage')
     end_row = 200
     end_col = table_col + len(headers) - 1
     excel.create_table(wksheet, table_row, table_col, end_row, end_col,
                        SUMMARY_INSTR_TABLE, headers, False)
 
     names = []
-    gcc_vals = []
-    # iar_vals = []
-    for nm in gcc_reductions.keys():
+    vals = []
+    for nm in reductions.keys():
         names.append(nm)
-        gcc_vals.append(gcc_reductions[nm])
-        # if (IAR is True):
-        #     iar_vals.append(iar_reductions[nm])
+        vals.append(reductions[nm])
 
     # Start of data
     row = table_row + 3
     # Divide by total to get percentage reduction
-    gcc_denom = excel.get_table_cell(SUMMARY_TOTALS_TABLE, rvbuild,
-                                     'Totals (bytes)')
-    # if (IAR is True):
-    #     iar_denom = excel.get_table_cell(SUMMARY_TOTALS_TABLE, 'IAR',
-    #                                      'Totals (bytes)')
+    denom = excel.get_table_cell(SUMMARY_TOTALS_TABLE, rvbuild, 'Totals (bytes)')
     table = SUMMARY_INSTR_TABLE
     for i in range(len(names)):
         # Vertical labels are instruction names
@@ -234,25 +221,15 @@ def add_replaced_instr_table(reductions, rvbuild, armbuild):
         # Update the table map to include the reduction and percentage cells
         excel.update_table_map(table, headers[1], names[i], row)
         excel.update_table_map(table, headers[2], names[i], row)
-        # if (IAR is True):
-        #     excel.update_table_map(table, 'IAR Reduction', names[i], row)
-        #     excel.update_table_map(table, 'IAR Percentage', names[i], row)
 
         # Record the reduction values
         col = excel.get_table_col(table, headers[1])
-        wksheet.write_number(row, col, gcc_vals[i], excel.light_bg_format)
-        # if (IAR is True):
-        #     col = excel.get_table_col(table, 'IAR Reduction')
-        #     wksheet.write_number(row, col, iar_vals[i], excel.light_bg_format)
+        wksheet.write_number(row, col, vals[i], excel.light_bg_format)
 
         # Record the percentages (green if > 0)
         num = excel.get_table_cell(table, headers[1], names[i])
         dest = excel.get_table_cell(table, headers[2], names[i])
-        excel.record_percentage(wksheet, num, gcc_denom, dest, 0, True)
-        # if (IAR is True):
-        #     num = excel.get_table_cell(table, 'IAR Reduction', names[i])
-        #     dest = excel.get_table_cell(table, 'IAR Percentage', names[i])
-        #     excel.record_percentage(wksheet, num, iar_denom, dest, 0, True)
+        excel.record_percentage(wksheet, num, denom, dest, 0, True)
 
         row += 1
 
@@ -261,7 +238,7 @@ def add_replaced_instr_table(reductions, rvbuild, armbuild):
                            row - 1, end_col)
 
 
-def add_replaced_instr_chart(compilers):
+def add_replaced_instr_chart(build):
     """ Add chart to visualize compact instruction reductions. """
     # Location of data table
     coord = excel.get_table_loc(SUMMARY_INSTR_TABLE)
@@ -274,17 +251,16 @@ def add_replaced_instr_chart(compilers):
     name_col = excel.get_table_col(SUMMARY_INSTR_TABLE, 'Instruction')
     start_nm_cell = CELL_NAME[(coord[0] + 3, name_col)]
     end_nm_cell = CELL_NAME[(coord[2], name_col)]
-    for c in compilers:
-        # Location of reduction percentage values
-        val_col_name = c + ' percentage'
-        val_col = excel.get_table_col(SUMMARY_INSTR_TABLE, val_col_name)
-        start_val_cell = CELL_NAME[(coord[0] + 3, val_col)]
-        end_val_cell = CELL_NAME[(coord[2], val_col)]
-        chart.add_series({
-            'name':         c,
-            'categories':   '=Summary!' + start_nm_cell + ':' + end_nm_cell,
-            'values':       '=Summary!' + start_val_cell + ':' + end_val_cell,
-            })
+    # Location of reduction percentage values
+    val_col_name = build + ' percentage'
+    val_col = excel.get_table_col(SUMMARY_INSTR_TABLE, val_col_name)
+    start_val_cell = CELL_NAME[(coord[0] + 3, val_col)]
+    end_val_cell = CELL_NAME[(coord[2], val_col)]
+    chart.add_series({
+        'name':         build,
+        'categories':   '=Summary!' + start_nm_cell + ':' + end_nm_cell,
+        'values':       '=Summary!' + start_val_cell + ':' + end_val_cell,
+        })
     chart.set_title({'name': 'Compressed Extension Reductions'})
     chart.set_style(10)
     chart.set_size({'width': 500, 'height': 340})
@@ -361,21 +337,19 @@ def add_replacement_rules_table():
                            row - 1, end_col)
 
 
-def add_instr_formats_tables(formats, compilers):
+def add_instr_formats_tables(formats, build):
     """ Add the Instruction Format tables to the 'tmp' worksheet. """
     # Location: tmp worksheet
     sheet = excel.wkbook.get_worksheet_by_name('tmp')
     row = 0
     col = 3
-    headers = ['Instruction']
-    for c in compilers:
-        headers.append('# (' + c + ')')
+    headers = ['Instruction', '# (' + build + ')']
     # rows are base instructions
     tables = []
     row_labels = []
-    for lbl in formats[0].keys():
+    for lbl in formats.keys():
         tables.append(lbl + ' (Total)')
-        for instr in formats[0][lbl]:
+        for instr in formats[lbl]:
             row_labels.append(instr)
 
     end_row = row + len(row_labels) + 2
@@ -387,15 +361,13 @@ def add_instr_formats_tables(formats, compilers):
         excel.add_row_labels(sheet, table, row_labels)
         col = col + len(headers)
     # Write the data to the corresponding table
-    for lbl in formats[0].keys():
+    for lbl in formats.keys():
         table_nm = lbl + ' (Total)'
-        for i in range(len(compilers)):
-            c = compilers[i]
-            c_formats = formats[i][lbl]
-            for instr in c_formats:
-                val = c_formats[instr]
-                cell = excel.get_table_cell(table_nm, '# (' + c + ')', instr)
-                sheet.write_number(cell, val, excel.light_bg_format)
+        c_formats = formats[lbl]
+        for instr in c_formats:
+            val = c_formats[instr]
+            cell = excel.get_table_cell(table_nm, '# (' + build + ')', instr)
+            sheet.write_number(cell, val, excel.light_bg_format)
 
 
 def add_instr_formats_radar(compiler):
@@ -785,7 +757,7 @@ def record_all_main(results, benchmarks):
     excel.update_table_loc(table, table_row, table_col, row - 1, table_end_col)
 
 
-def record_rvgcc_data(func, total_reductions, rvbuild):
+def record_riscv_data(func, total_reductions, rvbuild):
     """
     Records the RISC-V results for all benchmark functions to the main table.
 

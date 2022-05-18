@@ -81,46 +81,59 @@ output_file = vars(args)['outfile']
 failure = False
 try:
     if configureflag:
+        # create default configuration files for all benchmarks
+        # user MUST edit these to enable function(s) for code size analysis
         config.create_configurations(benchmarkpath)
         print('\nNew function selection files created for all benchmarks. Please review and select function(s) to parse.')
         exit(0)
     else:
+        # create the results directory if it does not already exist
         outdir = os.path.join(os.getcwd(), 'results')
         if not os.path.isdir(outdir):
             os.makedirs(outdir)
+        # create the config directory within the results dir also
         configdir = os.path.join(os.getcwd(), outdir, 'config')
         if not os.path.isdir(configdir):
             os.makedirs(configdir)
 
         if allflag:
+            # if analyzing all benchmarks, get a list (all subdirs of benchmarkpath)
             filedirs = os.listdir(benchmarkpath)
             benchmarks = [f for f in filedirs if os.path.isdir(os.path.join(benchmarkpath, f))]
-            configmissing = []
             benchmarks.sort()
+            # check if any benchmarks are missing configuration files
+            configmissing = []
             for benchmark in benchmarks:
                 masteropt = os.path.join(configdir, benchmark + '_master_selection.txt')
                 if not os.path.exists(masteropt):
                     configmissing.append(benchmark)
+            # if so, create the missing ones and prompt the user to edit them
             if len(configmissing) > 0:
                 for benchmark in configmissing:
                     config.create_configuration(os.path.join(benchmarkpath, benchmark))
                 print('\nNew function selection file(s) created for [' + ','.join(configmissing) + ']. Please review and select function(s) to parse.')
                 exit(0)
+            # otherwise, analyze all and create the summary workbook
             analyze.all_benchmarks(armbuild, rvbuild, benchmarkpath, output_file)
+            # also, analyze each individually
             for benchmark in benchmarks:
                 pth = os.path.join(benchmarkpath, benchmark)
                 analyze.single_benchmark(armbuild, rvbuild, pth, None)
         else:
-            # Extract compilation source and benchmark name
+            # for a single benchmark...
+            # Extract benchmark name
             if benchmarkpath[-1] != '/':
                 benchmarkpath += '/'
             lin_split = re.split('/', benchmarkpath[::-1], maxsplit=2)
             benchmark = lin_split[-2][::-1]
+            # check if the configuration file exists
             masteropt = os.path.join(configdir, benchmark + '_master_selection.txt')
+            # if not, create it and prompt the user to edit
             if not os.path.exists(masteropt):
                 config.create_configuration(benchmarkpath)
                 print('\nNew function selection file created for ' + benchmark + '. Please review and select function(s) to parse.')
                 exit(0)
+            # otherwise, analyze the benchmark
             analyze.single_benchmark(armbuild, rvbuild, benchmarkpath, output_file)
 
 except Exception:
