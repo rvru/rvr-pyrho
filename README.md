@@ -27,11 +27,11 @@
 
 	1. Set up the environment $PATH:
 ```console
-	source bin/setup_env.sh
+source bin/setup_env.sh
 ```
 	2. Create the default configuration files for all benchmarks:
 ```console
-	pyrho [path-to-benchmarks] --configure
+pyrho [path-to-benchmarks] --configure
 ```
 	3. Open the configuration files in results/config/ and select the functions
 	to analyze for code size.
@@ -61,9 +61,9 @@ optional arguments:
 
 Examples:
 ```console
-	pyrho ../rvr-hydra/benchmarks/waterman/
-	pyrho ../rvr-hydra/benchmarks/fir_filter --armbuild armgcc --rvbuild rvgcc
-	pyrho ../rvr-hydra/benchmarks/ --all
+pyrho ../rvr-hydra/benchmarks/waterman/
+pyrho ../rvr-hydra/benchmarks/fir_filter --armbuild armgcc --rvbuild rvgcc
+pyrho ../rvr-hydra/benchmarks/ --all
 ```
 
 ----------------------------------------------------------------------------------------------------------------------------
