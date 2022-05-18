@@ -38,26 +38,27 @@ pyrho [path-to-benchmarks] --configure
 	4. Select desired RVCX options in pyrho/constants.py
 	5. Analyze single or all benchmarks as desired.
 
+```console
 usage: pyrho [-h] [-c] [-a] [--armbuild ARMBUILD] [--rvbuild RVBUILD]
-	[-o OUTFILE] benchmark \
+	[-o OUTFILE] benchmark
 
-PyRho, A Code Density Analyzer \
+PyRho, A Code Density Analyzer
 
-positional arguments: \
-  benchmark             path to benchmark(s) \
+positional arguments:
+  benchmark             path to benchmark(s)
 
-optional arguments: \
-  -h, --help            show this help message and exit \
-  -c, --configure       create the default configuration files for function \
-                        selection per benchmark \
-  -a, --all             analyze all supported benchmarks \
-  --armbuild ARMBUILD   (optional, default: armcc) input the desired Arm build \
-                        for individual or baseline analysis \
-  --rvbuild RVBUILD     (optional, default: rvgcc) input the desired RISC-V \
-                        build for individual or baseline analysis \
-  -o OUTFILE, --outfile OUTFILE \
-                        (optional) filename for the output excel file \
-
+optional arguments:
+  -h, --help            show this help message and exit
+  -c, --configure       create the default configuration files for function
+                        selection per benchmark
+  -a, --all             analyze all supported benchmarks
+  --armbuild ARMBUILD   (optional, default: armcc) input the desired Arm build
+                        for individual or baseline analysis
+  --rvbuild RVBUILD     (optional, default: rvgcc) input the desired RISC-V
+                        build for individual or baseline analysis
+  -o OUTFILE, --outfile OUTFILE
+                        (optional) filename for the output excel file
+```
 Examples:
 ```console
 pyrho ../rvr-hydra/benchmarks/waterman/
