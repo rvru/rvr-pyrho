@@ -9,39 +9,38 @@ Script to analyze the disassembly of RISC-V and ARM-compiled benchmarks.
 ------------------------------------------------------------------------------
 
 @file   main.py
-@author Jennifer Hellar <jennifer.hellar [at] rice.edu>
-@date   10/01/2021
+@author Jennifer Hellar
+@date   05/18/2022
 
 @brief Analyzes RISC-V code size.
 
 ------------------------------------------------------------------------------
-Software Setup:
-
-    * Install Python 3
-    * pip3 install XlsxWriter
-    * In same directory:
-        * constants.py: Contains constants used by all scripts
-        * parser.py: Normal class parser for RVA-compiled builds (or IAR)
-        * summary_xlsx.py: Handles formatting/writing to the Summary worksheet
-        * function_xlsx.py: Handles formatting/writing to function worksheets
-        * save_restore_xlsx.py: Handles writing to __riscv_save/__riscv_restore
-            worksheets
-        * excel: Helper functions for summary_xlsx.py and function_xlsx.py
-        * cx.py: Helper functions for instruction replacement
-
-------------------------------------------------------------------------------
 Software Execution:
     * Select desired options in constants.py
+    * Create the default configuration files for all benchmarks (see below)
+        * Edit these files to select desired functions to analyze for code size
     * Execute on the command line:
 
-usage: main.py [-h] rvgcc-file [output-file]
+usage: main.py [-h] [-c] [-a] [--armbuild ARMBUILD] [--rvbuild RVBUILD]
+               [-o OUTFILE]
+               benchmark
+
+PyRho, A Code Density Analyzer
 
 positional arguments:
-  rvgcc-file   filename of rvgcc disassembly
-  output-file  (optional) filename for the output excel file
+  benchmark             path to benchmark(s)
 
 optional arguments:
-  -h, --help   show this help message and exit
+  -h, --help            show this help message and exit
+  -c, --configure       create the default configuration files for function
+                        selection per benchmark
+  -a, --all             analyze all supported benchmarks
+  --armbuild ARMBUILD   (optional, default: armcc) input the desired Arm build
+                        for individual or baseline analysis
+  --rvbuild RVBUILD     (optional, default: rvgcc) input the desired RISC-V
+                        build for individual or baseline analysis
+  -o OUTFILE, --outfile OUTFILE
+                        (optional) filename for the output excel file
 
 """
 # Built-in libraries to handle command line inputs/outputs/execution results
@@ -50,17 +49,7 @@ import os
 import traceback
 import re
 
-# Built-in library to create/write to Excel file
-import xlsxwriter
-
 # Supplementary python scripts
-import summary_xlsx
-import save_restore_xlsx
-import function_xlsx
-import cx
-import excel
-import arm
-import riscv
 import analyze
 import config
 from constants import *
@@ -70,13 +59,13 @@ from constants import *
 # Definition of expected command line inputs
 parser = argparse.ArgumentParser(description='PyRho, A Code Density Analyzer')
 parser.add_argument('benchmark', help='path to benchmark(s)')
-parser.add_argument('-c', '--configure', nargs='?', const=True, default=False,
-                    help='')
-parser.add_argument('-a', '--all', nargs='?', const=True, default=False,
-                    help='')
-parser.add_argument('--arm', default='armcc', required=False, help='desired Arm build')
-parser.add_argument('--riscv', default='rvgcc', required=False, help='desired RISC-V build')
-parser.add_argument('-o', '--outfile', nargs='?', const=None, default=None,
+parser.add_argument('-c', '--configure', action='store_true', default=False,
+                    help='create the default configuration files for function selection per benchmark')
+parser.add_argument('-a', '--all', action='store_true', default=False,
+                    help='analyze all supported benchmarks')
+parser.add_argument('--armbuild', default='armcc', required=False, help='(optional, default: armcc) input the desired Arm build for individual or baseline analysis')
+parser.add_argument('--rvbuild', default='rvgcc', required=False, help='(optional, default: rvgcc) input the desired RISC-V build for individual or baseline analysis')
+parser.add_argument('-o', '--outfile', required=False, default=None,
                     help='(optional) filename for the output excel file')
 
 # Capture command line inputs
@@ -84,8 +73,8 @@ args = parser.parse_args()
 benchmarkpath = vars(args)['benchmark']
 configureflag = vars(args)['configure']
 allflag = vars(args)['all']
-armbuild = vars(args)['arm']
-rvbuild = vars(args)['riscv']
+armbuild = vars(args)['armbuild']
+rvbuild = vars(args)['rvbuild']
 output_file = vars(args)['outfile']
 
 """ Main Code """
@@ -107,6 +96,7 @@ try:
             filedirs = os.listdir(benchmarkpath)
             benchmarks = [f for f in filedirs if os.path.isdir(os.path.join(benchmarkpath, f))]
             configmissing = []
+            benchmarks.sort()
             for benchmark in benchmarks:
                 masteropt = os.path.join(configdir, benchmark + '_master_selection.txt')
                 if not os.path.exists(masteropt):
@@ -117,6 +107,9 @@ try:
                 print('\nNew function selection file(s) created for [' + ','.join(configmissing) + ']. Please review and select function(s) to parse.')
                 exit(0)
             analyze.all_benchmarks(armbuild, rvbuild, benchmarkpath, output_file)
+            for benchmark in benchmarks:
+                pth = os.path.join(benchmarkpath, benchmark)
+                analyze.single_benchmark(armbuild, rvbuild, pth, None)
         else:
             # Extract compilation source and benchmark name
             if benchmarkpath[-1] != '/':
