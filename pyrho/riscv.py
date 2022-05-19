@@ -1,7 +1,7 @@
 """
 RISC-V Disassembly Scanner Functions
 
-Author: Jennifer Hellar (jenniferhellar@proton.me)
+Author: Jennifer Hellar
 
 """
 
@@ -13,11 +13,14 @@ import re
 # local scripts
 import excel
 import cx
+import save_restore_xlsx
 import function_xlsx
 from constants import *
 import config
 
+# import the class ParseRules from parser.py
 ParseRules = getattr(importlib.import_module('parser'), 'ParseRules')
+
 
 def update_tot(t_red, t_pair, t_instr, t_lbl, f_red, f_pair, f_instr, f_lbl):
     """ Updates the benchmark totals as each function is completed. """
@@ -454,7 +457,7 @@ def scan_riscv_file(compiler, assemblyfile, optfile):
                     if (regs_okay is False) and (off_okay is True):
                         if (reg1 not in REG_LIST) or (reg2 not in REG_LIST):
                             lwcnt[0] += 1
-                elif (opcode == 'cx.lwpc'):
+                elif (opcode == 'cx.lwpc') and lwcnt_en:
                     lwcnt[5] += 1
 
                 if (opcode == 'slli') and sllicnt_en:
@@ -556,7 +559,10 @@ def scan_riscv_file(compiler, assemblyfile, optfile):
         for func in results.keys():
             (f_size, f_reductions, f_instr, f_formats, f_bits) = results[func]
             # Number of compressed branches in this function
-            left = f_instr[br_instr]
+            if br_instr in f_instr.keys():
+                left = f_instr[br_instr]
+            else:
+                left = 0
             # Count through until reach max to keep
             while (zero is False) and (left > 0):
                 count += 1
@@ -574,13 +580,12 @@ def scan_riscv_file(compiler, assemblyfile, optfile):
 
     if (save_restore_en):
         # Add __riscv_save and __riscv_restore totals to corresponding wksheet
-        if record:
-            nm = '__riscv_save'
-            wksheet = excel.wkbook.get_worksheet_by_name(nm)
-            save_restore_xlsx.record_totals(wksheet, compiler, nm, results[nm][0])
-            nm = '__riscv_restore'
-            wksheet = excel.wkbook.get_worksheet_by_name(nm)
-            save_restore_xlsx.record_totals(wksheet, compiler, nm, results[nm][0])
+        nm = '__riscv_save'
+        wksheet = excel.wkbook.get_worksheet_by_name(nm)
+        save_restore_xlsx.record_totals(wksheet, compiler, nm, results[nm][0])
+        nm = '__riscv_restore'
+        wksheet = excel.wkbook.get_worksheet_by_name(nm)
+        save_restore_xlsx.record_totals(wksheet, compiler, nm, results[nm][0])
         # Add push/pop reductions to totals if enabled
         if ('push (save)' in ENABLED):
             size = results['__riscv_save'][0]

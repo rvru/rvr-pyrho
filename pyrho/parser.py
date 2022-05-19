@@ -4,7 +4,7 @@ Parser Class for Disassembly
 The ParseRules class determines the start/end of functions as well as extracts
 data from parsed lines.
 
-Author: Jennifer Hellar (jenniferhellar@proton.me)
+Author: Jennifer Hellar
 
 """
 
@@ -25,25 +25,6 @@ class ParseRules:
         else:
             res = re.search(r'^\w+\s<.+>:', line)
         return (res is not None)
-
-    # def is_func_end(self, line):
-    #     """
-    #     Returns TRUE if input line is the end of a function during parsing.
-    #     """
-    #     # Check if new function or empty line
-    #     # Check if $d (data) or $t (table) section (IAR only)
-    #     res = self.is_func_start(line) \
-    #         or line.strip() == '' \
-    #         or ((re.search(r'^\s\s`*[$a-zA-Z_][d.]*\w+`*:', line) is not None)
-    #             and self.compiler == 'IAR')
-    #     return res
-
-    # def is_end(self, line):
-    #     """
-    #     Returns TRUE if input line is the end of the last function to parse.
-    #     """
-    #     res = (line.strip() == '...')
-    #     return res
 
     def is_skippable(self, line):
         """

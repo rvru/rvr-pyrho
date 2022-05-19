@@ -5,7 +5,7 @@ This file contains helper functions for creating and modifying an Excel
 workbook. In particular, it tracks the location and makeup of any tables added
 to Excel worksheets.
 
-Author: Jennifer Hellar (jennifer.hellar@rice.edu)
+Author: Jennifer Hellar
 
 """
 

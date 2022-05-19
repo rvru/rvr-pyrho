@@ -5,7 +5,7 @@ This file contains all the functions for determining if 32-bit instructions
 can be replaced by user-defined 32-bit or 16-bit instructions.  Replaceable
 instructions should be enabled in constants.py.
 
-Author: Jennifer Hellar (jennifer.hellar@rice.edu)
+Author: Jennifer Hellar
 
 """
 

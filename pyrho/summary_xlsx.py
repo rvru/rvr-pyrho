@@ -3,7 +3,7 @@ Excel Summary Worksheet
 
 This file contains functions for creating and modifying the summary worksheet.
 
-Author: Jennifer Hellar (jennifer.hellar@rice.edu)
+Author: Jennifer Hellar
 
 """
 
@@ -377,8 +377,6 @@ def add_instr_formats_radar(compiler):
     ch_row = max(coord[2] + 8, coord[0] + 19)
     if (compiler == 'rvgcc'):
         ch_col = coord[1]
-    # elif (compiler == 'IAR'):
-    #     ch_col = coord[3] + 2
     chart_loc_cell = CELL_NAME[(ch_row, ch_col)]
 
     # Make the pie chart underneath to mark the instruction format
@@ -455,9 +453,6 @@ def add_total_instr_table(total, keep, compiler):
     if (compiler == 'rvgcc'):
         col = coord[1]
         table = SUMMARY_RVGCC_INSTR_TOT_TABLE
-    # elif (compiler == 'IAR'):
-    #     col = coord[3] + 2
-    #     table = SUMMARY_IAR_INSTR_TOT_TABLE
     headers = ['instruction',
                '# of occurrences',
                'percentage']
@@ -540,9 +535,6 @@ def add_pairs_table(pairs, keep, compiler, armbuild):
     if (compiler == 'rvgcc'):
         col = excel.get_table_loc(SUMMARY_INSTR_TABLE)[1]
         table = SUMMARY_RVGCC_PAIRS_TABLE
-    # elif (compiler == 'IAR'):
-    #     col = excel.get_table_loc(SUMMARY_INSTR_TABLE)[3] + 2
-    #     table = SUMMARY_IAR_PAIRS_TABLE
     headers = ['Instruction Pair',
                '# of Occurrences',
                'Reduction (Rel. to ARM)']
@@ -634,9 +626,6 @@ def add_overshoot_table(results, arm_results, keep, compiler):
     if (compiler == 'rvgcc'):
         coord = excel.get_table_loc(SUMMARY_RVGCC_PAIRS_TABLE)
         table = SUMMARY_RVGCC_OVERSHOOT_TABLE
-    # elif (compiler == 'IAR'):
-    #     coord = excel.get_table_loc(SUMMARY_IAR_PAIRS_TABLE)
-    #     table = SUMMARY_IAR_OVERSHOOT_TABLE
     row = coord[2] + 8
     col = coord[1]
     headers = ['Function (Click to View)',
@@ -691,8 +680,6 @@ def add_overshoot_chart(compiler):
     # Location of the data table
     if (compiler == 'rvgcc'):
         table = SUMMARY_RVGCC_OVERSHOOT_TABLE
-    # elif (compiler == 'IAR'):
-    #     table = SUMMARY_IAR_OVERSHOOT_TABLE
     coord = excel.get_table_loc(table)
     # Location of function names
     col = excel.get_table_col(table, 'Function (Click to View)')
@@ -808,10 +795,10 @@ def record_riscv_data(func, total_reductions, rvbuild):
         col = excel.get_table_col(table, 'Function (Click to View)')
         wksheet.write_formula(row, col, formula, curr_format)
         # 'RVGCC'
-        col = excel.get_table_col(table, 'RISC-V')
+        col = excel.get_table_col(table, rvbuild)
         wksheet.write_number(row, col, total, curr_format)
         # 'RVGCC (Final)'
-        col = excel.get_table_col(table, 'RISC-V (Final)')
+        col = excel.get_table_col(table, rvbuild + ' (final)')
         if ('push (save)' in ENABLED):
             wksheet.write_number(row, col, 0, curr_format)
         else:
@@ -829,10 +816,10 @@ def record_riscv_data(func, total_reductions, rvbuild):
         col = excel.get_table_col(table, 'Function (Click to View)')
         wksheet.write_formula(row, col, formula, curr_format)
         # 'RVGCC'
-        col = excel.get_table_col(table, 'RISC-V')
+        col = excel.get_table_col(table, rvbuild)
         wksheet.write_number(row, col, total, curr_format)
         # 'RVGCC (Final)'
-        col = excel.get_table_col(table, 'RISC-V (Final)')
+        col = excel.get_table_col(table, rvbuild + ' (final)')
         if ('pop (restore)' in ENABLED):
             wksheet.write_number(row, col, 0, curr_format)
         else:
@@ -871,73 +858,3 @@ def record_arm_data(rv_results, arm_results, rvbuild, armbuild):
     # Calculate 'RVGCC (Final) - ARM'
     excel.subtract_col(wksheet, SUMMARY_MAIN_TABLE, rvbuild + ' (final)',
                        armbuild, rvbuild + ' (final) - ' + armbuild)
-
-
-def record_iar_data(gcc_results, iar_results):
-    """
-    Records the IAR results for all benchmark functions to the main table.
-
-    Fills in and formats the following columns:
-        - 'IAR'         - 'IAR (Final) - ARM'
-        - 'IAR Delta'   - 'IAR (Final)'
-    """
-    coord = excel.get_table_loc(SUMMARY_MAIN_TABLE)
-    (table_row, table_col, table_end_row, table_end_col) = coord
-    row = table_row + 3
-    curr_format = excel.light_bg_format
-    for nm in gcc_results.keys():
-        if (nm != '__riscv_save') and (nm != '__riscv_restore'):
-            (size, reductions, func_instr, formats, bits) = iar_results[nm]
-            func_reduction = 0
-            for instr in reductions.keys():
-                func_reduction += reductions[instr]
-            # 'IAR'
-            col = excel.get_table_col(SUMMARY_MAIN_TABLE, 'IAR')
-            wksheet.write_number(row, col, size, curr_format)
-            # 'IAR (Final)'
-            reduced = size - func_reduction
-            col = excel.get_table_col(SUMMARY_MAIN_TABLE, 'IAR (Final)')
-            wksheet.write_number(row, col, reduced, curr_format)
-            row += 1
-            # Alternate backgrounds for each row
-            if curr_format == excel.light_bg_format:
-                curr_format = excel.dark_bg_format
-            else:
-                curr_format = excel.light_bg_format
-    if (save_restore_en):
-        # Put the '__riscv_save' and '__riscv_restore' results last
-        (size, r, i, f, b) = iar_results['__riscv_save']
-        # 'IAR'
-        col = excel.get_table_col(SUMMARY_MAIN_TABLE, 'IAR')
-        wksheet.write_number(row, col, size, curr_format)
-        # 'IAR (Final)'
-        col = excel.get_table_col(SUMMARY_MAIN_TABLE, 'IAR (Final)')
-        if ('push (save)' in ENABLED):
-            wksheet.write_number(row, col, 0, curr_format)
-        else:
-            wksheet.write_number(row, col, size, curr_format)
-        row += 1
-        # Alternate backgrounds for each row
-        if curr_format == excel.light_bg_format:
-            curr_format = excel.dark_bg_format
-        else:
-            curr_format = excel.light_bg_format
-        # Put the '__riscv_restore' results last
-        (size, r, i, f, b) = iar_results['__riscv_restore']
-        # 'IAR'
-        col = excel.get_table_col(SUMMARY_MAIN_TABLE, 'IAR')
-        wksheet.write_number(row, col, size, curr_format)
-        # 'IAR (Final)'
-        col = excel.get_table_col(SUMMARY_MAIN_TABLE, 'IAR (Final)')
-        if ('pop (restore)' in ENABLED):
-            wksheet.write_number(row, col, 0, curr_format)
-        else:
-            wksheet.write_number(row, col, size, curr_format)
-        row += 1
-
-    # Calculate 'IAR Delta'
-    excel.subtract_col(wksheet, SUMMARY_MAIN_TABLE, 'IAR (Final)', 'IAR',
-                       'IAR Delta')
-    # Calculate 'IAR (Final) - ARM'
-    excel.subtract_col(wksheet, SUMMARY_MAIN_TABLE, 'IAR (Final)',
-                       'ARM', 'IAR (Final) - ARM')

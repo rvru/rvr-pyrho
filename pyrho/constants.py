@@ -32,7 +32,7 @@ subi5 = ('cx.subi5', addi_subi_en)
 
 slli_en = ('cx.slli', True)
 
-branches_en = True
+branches_en = False
 BR_KEEP = 0.9
 bne_en = ('cx.bne', branches_en)
 blt_en = ('cx.blt', branches_en)
@@ -46,7 +46,7 @@ shzero_en = ('cx.shzero', str_zero_en)
 sbzero_en = ('cx.sbzero', str_zero_en)
 
 # NOTE: j_jal_en and save_restore_en cannot both be True
-j_jal_en = True
+j_jal_en = False
 j_en = ('c.j (restore)', j_jal_en)
 jal_en = ('c.jal (save)', j_jal_en)
 

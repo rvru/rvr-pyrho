@@ -4,7 +4,7 @@ Excel Save/Restore Functions Worksheet
 
 This file contains functions for creating/modifying save/restore worksheets.
 
-Author: Jennifer Hellar (jennifer.hellar@rice.edu)
+Author: Jennifer Hellar
 
 """
 
@@ -37,9 +37,9 @@ def create_sheet(name):
         wksheet.set_column(col, col, col_sizes[col])
 
     # 'RISC-V (RVGCC) [Save or Restore] Totals'
-    add_riscv_totals_table(wksheet, 'RVGCC', name)
+    add_riscv_totals_table(wksheet, 'rvgcc', name)
     # 'save_12 (RVGCC)', etc.
-    add_riscv_tables(wksheet, 'RVGCC', name)
+    add_riscv_tables(wksheet, 'rvgcc', name)
 
     return wksheet
 
@@ -49,23 +49,12 @@ def create_sheet(name):
 
 def add_riscv_totals_table(wksheet, compiler, func):
     """ Adds the 'RISC-V [compiler] [func] Totals' table to the worksheet. """
-    if (compiler == 'IAR'):
+    if (compiler == 'rvgcc'):
         row = 2
         col = 0
         if (func == '__riscv_save'):
-            table = SAVE_IAR_TOTALS_TABLE
-        elif (func == '__riscv_restore'):
-            table = RESTORE_IAR_TOTALS_TABLE
-    elif (compiler == 'RVGCC'):
-        row = 2
-        col = 0
-        if (func == '__riscv_save'):
-            # row = excel.get_table_loc(SAVE_IAR_TOTALS_TABLE)[0]
-            # col = excel.get_table_loc(SAVE_IAR_A_TABLE)[3] + 2
             table = SAVE_RVGCC_TOTALS_TABLE
         elif (func == '__riscv_restore'):
-            # row = excel.get_table_loc(RESTORE_IAR_TOTALS_TABLE)[0]
-            # col = excel.get_table_loc(RESTORE_IAR_A_TABLE)[3] + 2
             table = RESTORE_RVGCC_TOTALS_TABLE
     headers = ['', 'Bytes']
     row_labels = ['Total']
@@ -80,20 +69,14 @@ def add_riscv_tables(wksheet, compiler, func):
     """ Adds individual save_x or restore_x function tables. """
     if (func == '__riscv_save'):
         row = excel.get_table_loc(SAVE_RVGCC_TOTALS_TABLE)[2] + 8
-        if (compiler == 'RVGCC'):
+        if (compiler == 'rvgcc'):
             col = excel.get_table_loc(SAVE_RVGCC_TOTALS_TABLE)[1]
             tables = rvgcc_save_tables
-        # elif (compiler == 'IAR'):
-        #     col = excel.get_table_loc(SAVE_IAR_TOTALS_TABLE)[1]
-        #     tables = iar_save_tables
     elif (func == '__riscv_restore'):
         row = excel.get_table_loc(RESTORE_RVGCC_TOTALS_TABLE)[2] + 8
-        if (compiler == 'RVGCC'):
+        if (compiler == 'rvgcc'):
             col = excel.get_table_loc(RESTORE_RVGCC_TOTALS_TABLE)[1]
             tables = rvgcc_restore_tables
-        # elif (compiler == 'IAR'):
-        #     col = excel.get_table_loc(RESTORE_IAR_TOTALS_TABLE)[1]
-        #     tables = iar_restore_tables
 
     headers = ['Address',
                'Instruction',
@@ -149,14 +132,10 @@ def record_instruction(wksheet, compiler, table, curr_row, addr, instr, opcode,
 def record_totals(wksheet, compiler, func, bytes):
     """ Write out the function totals to the totals table. """
     if (func == '__riscv_save'):
-        if (compiler == 'IAR'):
-            table = SAVE_IAR_TOTALS_TABLE
-        elif (compiler == 'RVGCC'):
+        if (compiler == 'rvgcc'):
             table = SAVE_RVGCC_TOTALS_TABLE
     elif (func == '__riscv_restore'):
-        if (compiler == 'IAR'):
-            table = RESTORE_IAR_TOTALS_TABLE
-        elif (compiler == 'RVGCC'):
+        if (compiler == 'rvgcc'):
             table = RESTORE_RVGCC_TOTALS_TABLE
     cell = excel.get_table_cell(table, 'Bytes', 'Total')
     wksheet.write_number(cell, bytes, excel.bold_light_format)

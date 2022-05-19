@@ -3,7 +3,7 @@ Excel Function Worksheet
 
 This file contains functions for creating/modifying function worksheets.
 
-Author: Jennifer Hellar (jennifer.hellar@rice.edu)
+Author: Jennifer Hellar
 
 """
 
@@ -35,10 +35,6 @@ def create_sheet(func_name, name):
                    # RISC-V table
                  6: 20, 7: 20, 8: 20, 9: 20, 10: 20, 11: 30, 12: 20, 13: 50,
                  14: 20,
-                 #   # RVGCC table
-                 # 15: 20, 16: 20, 17: 20, 18: 20, 19: 20, 20: 30, 21: 20,
-                 # 22: 50,
-                 # 23: 20,
                    # Instruction format tables
                  15: 20, 16: 20, 17: 20, 18: 20, 19: 20, 20: 20, 21: 20,
                  22: 20, 23: 20, 24: 20, 25: 20, 26: 20, 27: 20, 28: 20,
@@ -54,10 +50,6 @@ def create_sheet(func_name, name):
     add_arm_totals_table(wksheet, row, col)
     # 'ARM M0+'
     add_arm_table(wksheet)
-    # # 'RISC-V (IAR) Totals'
-    # add_riscv_totals_table(wksheet, 'IAR')
-    # # 'RISC-V (IAR)'
-    # add_riscv_table(wksheet, 'IAR')
     # 'RISC-V (GCC) Totals'
     add_riscv_totals_table(wksheet, 'rvgcc')
     # 'RISC-V (GCC)'
@@ -99,11 +91,6 @@ def add_arm_table(wksheet):
 
 def add_riscv_totals_table(wksheet, compiler):
     """ Adds a RISC-V Totals for the given compiler table to the worksheet. """
-    # if (compiler == 'IAR'):
-    #     row = excel.get_table_loc(ARM_TOTALS_TABLE)[0]
-    #     col = excel.get_table_loc(ARM_TABLE)[3] + 2
-    #     table = IAR_TOTALS_TABLE
-    # elif (compiler == 'rvgcc'):
     row = excel.get_table_loc(ARM_TOTALS_TABLE)[0]
     col = excel.get_table_loc(ARM_TABLE)[3] + 2
     table = RVGCC_TOTALS_TABLE
@@ -139,9 +126,6 @@ def add_riscv_table(wksheet, compiler):
     if (compiler == 'rvgcc'):
         col = excel.get_table_loc(RVGCC_TOTALS_TABLE)[1]
         table = RVGCC_TABLE
-    # elif (compiler == 'IAR'):
-    #     col = excel.get_table_loc(IAR_TOTALS_TABLE)[1]
-    #     table = IAR_TABLE
     rv_headers = ['Address',
                   'Instruction',
                   'Opcode',
@@ -186,10 +170,6 @@ def add_instr_freq_table(wksheet, compiler, instr_freq):
         table = RVGCC_INSTR_TABLE
         row = excel.get_table_loc(RVGCC_TOTALS_TABLE)[2] + 2
         col = excel.get_table_loc(RVGCC_TOTALS_TABLE)[1]
-    # elif (compiler == 'IAR'):
-    #     table = IAR_INSTR_TABLE
-    #     row = excel.get_table_loc(IAR_TOTALS_TABLE)[2] + 2
-    #     col = excel.get_table_loc(IAR_TOTALS_TABLE)[1]
     end_row = row + len(names) + 2
     end_col = col + len(headers) - 1
     excel.create_table(wksheet, row, col, end_row, end_col,
@@ -228,10 +208,6 @@ def add_instr_freq_chart(wksheet, compiler):
     if (compiler == 'rvgcc'):
         data_table = RVGCC_INSTR_TABLE
         loc_table = RVGCC_TOTALS_TABLE
-    # elif (compiler == 'IAR'):
-    #     data_table = IAR_INSTR_TABLE
-    #     loc_table = IAR_TOTALS_TABLE
-    # Location of data table
     coord = excel.get_table_loc(data_table)
     (first_row, first_col, last_row, last_col) = coord
     first_row = first_row + 3
@@ -260,8 +236,6 @@ def add_instr_freq_chart(wksheet, compiler):
         })
     if (compiler == 'rvgcc'):
         chart.set_title({'name': 'RISC-V Instructions'})
-    # elif (compiler == 'IAR'):
-    #     chart.set_title({'name': 'IAR Instructions'})
     chart.set_style(10)
     chart.set_size({'width': 435, 'height': 320})
     wksheet.insert_chart(chart_loc_cell, chart, {'x_offset': 0,
@@ -293,8 +267,6 @@ def add_instr_formats_table(wksheet, compiler, formats):
             val = formats[lbl][instr]
             if (compiler == 'rvgcc'):
                 cell = excel.get_table_cell(table_nm, '# (RISC-V)', instr)
-            # elif (compiler == 'IAR'):
-            #     cell = excel.get_table_cell(table_nm, '# (IAR)', instr)
             wksheet.write_number(cell, val, excel.light_bg_format)
 
 
@@ -303,8 +275,6 @@ def add_instr_formats_radar(wksheet, compiler):
     # Location of chart: next to totals table
     if (compiler == 'rvgcc'):
         coord = excel.get_table_loc(RVGCC_TOTALS_TABLE)
-    # elif (compiler == 'IAR'):
-    #     coord = excel.get_table_loc(IAR_TOTALS_TABLE)
     ch_row = coord[0] - 1
     ch_col = coord[3] + 2
     chart_loc_cell = CELL_NAME[(ch_row, ch_col)]
@@ -318,9 +288,6 @@ def add_instr_formats_radar(wksheet, compiler):
     if (compiler == 'rvgcc'):
         chart1.set_title({'name': 'RISC-V Instruction Formats',
                           'layout': {'x': 0.01, 'y': 0.01}})
-    # elif (compiler == 'IAR'):
-    #     chart1.set_title({'name': 'IAR Instruction Formats',
-    #                       'layout': {'x': 0.01, 'y': 0.01}})
     chart1.set_legend({'position': 'overlay_right'})
     chart1.set_size({'width': 640, 'height': 490})
     chart1.set_chartarea({'border': {'none': True}})
@@ -337,8 +304,6 @@ def add_instr_formats_radar(wksheet, compiler):
         categories = [wksheet.get_name(), row + 3, col, end_row, col]
         if (compiler == 'rvgcc'):
             val_col = excel.get_table_col(tbl_nm, '# (RISC-V)')
-        # elif (compiler == 'IAR'):
-        #     val_col = excel.get_table_col(tbl_nm, '# (IAR)')
         values = [wksheet.get_name(), row + 3, val_col, end_row, val_col]
         chart.add_series({
                 'name':         name,
@@ -364,11 +329,6 @@ def add_riscv_bits_table(wksheet, compiler):
         data_table = RVGCC_TABLE
         tot_table = RVGCC_TOTALS_TABLE
         table = RVGCC_BITS_TABLE
-    # elif (compiler == 'IAR'):
-    #     loc_table = IAR_INSTR_TABLE
-    #     data_table = IAR_TABLE
-    #     tot_table = IAR_TOTALS_TABLE
-    #     table = IAR_BITS_TABLE
 
     # Location: Directly below the compiler Instructions table
     row = excel.get_table_loc(loc_table)[2] + 2
@@ -439,9 +399,6 @@ def mark_compact_rows(wksheet, compiler, compact_loc, lwpc_fail):
     if (compiler == 'rvgcc'):
         start = excel.get_table_loc(RVGCC_TABLE)[1]
         end = excel.get_table_loc(RVGCC_TABLE)[3]
-    # elif (compiler == 'IAR'):
-    #     start = excel.get_table_loc(IAR_TABLE)[1]
-    #     end = excel.get_table_loc(IAR_TABLE)[3]
     for instr in compact_loc.keys():
         row_lst = compact_loc[instr]
         for row in row_lst:
@@ -462,9 +419,6 @@ def mark_failed_rows(wksheet, compiler, loc):
     if (compiler == 'rvgcc'):
         start = excel.get_table_loc(RVGCC_TABLE)[1]
         end = excel.get_table_loc(RVGCC_TABLE)[3]
-    # elif (compiler == 'IAR'):
-    #     start = excel.get_table_loc(IAR_TABLE)[1]
-    #     end = excel.get_table_loc(IAR_TABLE)[3]
     for instr in loc.keys():
         row_lst = loc[instr]
         for row in row_lst:
@@ -480,8 +434,6 @@ def mark_pair_rows(wksheet, compiler, pair_loc):
     """
     if (compiler == 'rvgcc'):
         coord = excel.get_table_loc(RVGCC_TABLE)
-    # elif (compiler == 'IAR'):
-    #     coord = excel.get_table_loc(IAR_TABLE)
     start = coord[1]
     end = coord[3]
     format_dict = {'type': 'no_errors', 'format': excel.gold_bg_format}
@@ -517,10 +469,6 @@ def record_func_name(wksheet, name):
     row = excel.get_table_loc(table)[0] + 1
     col = excel.get_table_loc(table)[1]
     wksheet.write_string(row, col, name)
-    # table = IAR_TABLE
-    # row = excel.get_table_loc(table)[0] + 1
-    # col = excel.get_table_loc(table)[1]
-    # wksheet.write_string(row, col, name)
     table = RVGCC_TABLE
     row = excel.get_table_loc(table)[0] + 1
     col = excel.get_table_loc(table)[1]
@@ -532,8 +480,6 @@ def record_instruction(wksheet, compiler, curr_row, addr, instr, opcode,
     """ Write out info for a single instruction. """
     if (compiler == 'rvgcc'):
         table = RVGCC_TABLE
-    # elif (compiler == 'IAR'):
-    #     table = IAR_TABLE
     elif (compiler.find('arm') != -1):
         table = ARM_TABLE
 
@@ -571,9 +517,6 @@ def record_riscv_totals(wksheet, compiler, original, reductions):
     """ Write out the RISC-V function totals to the Totals table. """
     if (compiler == 'rvgcc'):
         table = RVGCC_TOTALS_TABLE
-    # elif (compiler == 'IAR'):
-    #     table = IAR_TOTALS_TABLE
-    # Calculate the total reduction for the function
     func_reduction = 0
     for instr in reductions.keys():
         func_reduction += reductions[instr]
@@ -611,8 +554,6 @@ def record_comments(wksheet, compiler, curr_row, instr, args):
     """
     if (compiler == 'rvgcc'):
         table = RVGCC_TABLE
-    # elif (compiler == 'IAR'):
-    #     table = IAR_TABLE
 
     ver_col = excel.get_table_col(table, 'Compact version')
     impl_col = excel.get_table_col(table, 'Implementation')
