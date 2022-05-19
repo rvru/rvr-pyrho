@@ -65,7 +65,7 @@ def single_benchmark(armbuild, rvbuild, benchmarkpath, output_file):
     if (os.path.exists(armfile) is False):
         raise Exception('Unable to find expected Arm disassembly:\n\t' + armfile)
 
-    # this should have been created in main, but just in case...
+    # This should have been created in main, but just in case...
     outdir = os.path.join(os.getcwd(), 'results')
     if not os.path.isdir(outdir):
         os.makedirs(outdir)
@@ -73,7 +73,7 @@ def single_benchmark(armbuild, rvbuild, benchmarkpath, output_file):
     	output_file = benchmark + '_analysis.xlsx'
     if output_file[-5:] != '.xlsx':
         output_file += '.xlsx'
-    # create the Excel workbook
+    # Create the Excel workbook
     output_file = os.path.join(outdir, output_file)
     excel.create_workbook(output_file)
 
@@ -216,7 +216,7 @@ def all_benchmarks(armbuild, rvbuild, benchmarkdir, output_file):
     for build in BUILDS:
         results[build] = {}
 
-    # for each benchmark
+    # Analyze each benchmark
     for benchmark in benchmarks:
         print('\n' + benchmark)
         benchmarkpath = os.path.join(benchmarkdir, benchmark)

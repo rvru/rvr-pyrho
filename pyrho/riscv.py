@@ -48,6 +48,11 @@ def scan_riscv_file(compiler, assemblyfile, optfile):
     Opens and scans the RISC-V disassembly file to extract data and update
     Excel workbook.
 
+    Arguments:
+        - compiler          RISC-V toolchain used to compile the benchmark
+        - assemblyfile      RISC-V disassembly file
+        - optfile           RISC-V config file; selects the functions to parse
+
     Function-Level Data Structures:
         - f_size: function size (in bytes)
         - f_reductions:
@@ -86,22 +91,24 @@ def scan_riscv_file(compiler, assemblyfile, optfile):
 
     Returns: (results, t_reductions, t_pairs, t_instr, t_formats)
     """
-    data0 = 0
-    data1 = 0
-    data2 = 0
-    data3 = 0
-    data4 = 0
-    data5 = 0
-    data6 = 0
-    data7 = 0
-    data8 = 0
-    data9 = 0
-    data10 = 0
-    data11 = 0
-    data12 = 0
+    # Some available counters to aggregate details about specific instructions
+    addioffsetcnt_en = False
+    lwcnt_en = False
+    sllicnt_en = False
+    subcnt_en = False
+    if addioffsetcnt_en:
+        addioffset = {0: 0, 1:0, 2:0, 3:0, 4:0, 5:0}
+    if lwcnt_en:
+        lwcnt = {0: 0, 1:0, 2:0, 3:0, 4:0, 5:0}
+    if sllicnt_en:
+        sllicnt = {0: 0, 1:0, 2:0, 3:0, 4:0}
+    if subcnt_en:
+        subcnt = {0: 0, 1:0, 2:0, 3:0, 4:0}
 
+    # Read the config file to know which functions to analyze
     func_opts = config.read_config(optfile)
 
+    # Check that at least one function has been selected for analysis
     funcs_to_parse = [func_opts[i][0] for i in func_opts.keys() if func_opts[i][1]]
     if len(funcs_to_parse) == 0:
         raise Exception('Please select at least one function to parse in ' + optfile)
@@ -124,31 +131,32 @@ def scan_riscv_file(compiler, assemblyfile, optfile):
             if (instr_lbl == lbl):
                 t_formats[lbl][instr] = 0
 
+    # Configure the parser
     parse_rules = ParseRules(compiler)
 
     parsing = False
     last_saved = False
-    fcnt = 0
+    fcnt = 0    # function index
     with open(assemblyfile, 'r') as f:
         for line in f:
-            # found the start of a new function
+            # Found the start of a new function
             if parse_rules.is_func_start(line):
                 (fname, wname) = parse_rules.get_func_data(line)
                 nm, parse, subfunc = func_opts[fcnt]
                 fcnt += 1
                 if nm != fname:
                     raise Exception('Error: function name does not match func_opts record')
-                # done w/current if new function is not a subfunction or not set
-                # to parse
+                # Done w/analysis of current function if the new function is not
+                #   a subfunction or not set to parse
                 if parsing and (not subfunc or not parse):
-                    # record current function totals
+                    # Record current function totals
                     if (wksheet_name == '__riscv_save'):
-                        # increment total for save_0, save_1, etc.
+                        # Increment total for save_0, save_1, etc.
                         if (f_size > 0):
                             curr = results['__riscv_save'][0]
                             results['__riscv_save'] = (curr + f_size, {}, {}, {}, 0)
                     elif (wksheet_name == '__riscv_restore'):
-                        # increment total for restore_0, restore_1, etc.
+                        # Increment total for restore_0, restore_1, etc.
                         if (f_size > 0):
                             curr = results['__riscv_restore'][0]
                             results['__riscv_restore'] = (curr + f_size, {}, {}, {}, 0)
@@ -159,10 +167,10 @@ def scan_riscv_file(compiler, assemblyfile, optfile):
                                                                          f_reductions,
                                                                          max_offset,
                                                                          min_offset)
-                            # if number of bits too high, not able to us cx.lwpc
+                            # If number of bits too high, not able to us cx.lwpc
                             if (res is False):
                                 f_reductions['cx.lwpc'] = 0
-                                # revert back to original 32-bit LW
+                                # Revert back to original 32-bit LW
                                 if 'lw' in f_instr.keys():
                                     f_instr['lw'] += f_instr['cx.lwpc']
                                 else:
@@ -170,26 +178,24 @@ def scan_riscv_file(compiler, assemblyfile, optfile):
                                 f_instr['cx.lwpc'] = 0
                                 lwpc_fail = True
 
-                            # else:
-                            #     data5 -= f_instr['cx.lwpc']
-
                         # Add function totals to the overall benchmark totals
                         res = update_tot(t_reductions, t_pairs, t_instr,
                                          t_formats, f_reductions, f_pairs,
                                          f_instr, f_formats)
                         (t_reductions, t_pairs, t_instr, t_formats) = res
                         # Save the function results and record in Excel worksheet
-                        results[func_name] = (f_size, f_reductions, f_instr, f_formats,
-                                              f_bits)
-                        function_xlsx.record_riscv_totals(wksheet, compiler, f_size,
-                                                          f_reductions)
+                        results[func_name] = (f_size, f_reductions, f_instr,
+                                                f_formats, f_bits)
+                        function_xlsx.record_riscv_totals(wksheet, compiler,
+                                                          f_size, f_reductions)
                         function_xlsx.add_tables_charts_marks(wksheet, compiler,
                                                               f_instr, f_formats,
                                                               replaced_loc,
-                                                              not_repl_loc, lwpc_fail,
+                                                              not_repl_loc,
+                                                              lwpc_fail,
                                                               pair_loc)
                     last_saved = True
-                # a new function to parse and not a subfunction
+                # Beginning a new function to analyze and not a subfunction
                 if parse and not subfunc:
                     # Create and format new worksheet
                     (func_name, wksheet_name) = parse_rules.get_func_data(line)
@@ -198,25 +204,13 @@ def scan_riscv_file(compiler, assemblyfile, optfile):
                         # Some functions grouped/have same definition in assembly
                         num = int(re.split('_', func_name)[-1])
                         if (num < 4):
-                            if (compiler == 'IAR'):
-                                tbl = SAVE_IAR_A_TABLE
-                            elif (compiler == 'rvgcc'):
-                                tbl = SAVE_RVGCC_A_TABLE
+                            tbl = SAVE_RVGCC_A_TABLE
                         elif (num < 8):
-                            if (compiler == 'IAR'):
-                                tbl = SAVE_IAR_B_TABLE
-                            elif (compiler == 'rvgcc'):
-                                tbl = SAVE_RVGCC_B_TABLE
+                            tbl = SAVE_RVGCC_B_TABLE
                         elif (num < 12):
-                            if (compiler == 'IAR'):
-                                tbl = SAVE_IAR_C_TABLE
-                            elif (compiler == 'rvgcc'):
-                                tbl = SAVE_RVGCC_C_TABLE
+                            tbl = SAVE_RVGCC_C_TABLE
                         else:
-                            if (compiler == 'IAR'):
-                                tbl = SAVE_IAR_D_TABLE
-                            elif (compiler == 'rvgcc'):
-                                tbl = SAVE_RVGCC_D_TABLE
+                            tbl = SAVE_RVGCC_D_TABLE
 
                         row = excel.get_table_loc(tbl)[0] + 3
                         f_size = 0
@@ -224,39 +218,22 @@ def scan_riscv_file(compiler, assemblyfile, optfile):
                         wksheet = excel.wkbook.get_worksheet_by_name(wksheet_name)
                         num = int(re.split('_', func_name)[-1])
                         if (num < 4):
-                            if (compiler == 'IAR'):
-                                tbl = RESTORE_IAR_A_TABLE
-                            elif (compiler == 'rvgcc'):
-                                tbl = RESTORE_RVGCC_A_TABLE
+                            tbl = RESTORE_RVGCC_A_TABLE
                         elif (num < 8):
-                            if (compiler == 'IAR'):
-                                tbl = RESTORE_IAR_B_TABLE
-                            elif (compiler == 'rvgcc'):
-                                tbl = RESTORE_RVGCC_B_TABLE
+                            tbl = RESTORE_RVGCC_B_TABLE
                         elif (num < 12):
-                            if (compiler == 'IAR'):
-                                tbl = RESTORE_IAR_C_TABLE
-                            elif (compiler == 'rvgcc'):
-                                tbl = RESTORE_RVGCC_C_TABLE
+                            tbl = RESTORE_RVGCC_C_TABLE
                         else:
-                            if (compiler == 'IAR'):
-                                tbl = RESTORE_IAR_D_TABLE
-                            elif (compiler == 'rvgcc'):
-                                tbl = RESTORE_RVGCC_D_TABLE
+                            tbl = RESTORE_RVGCC_D_TABLE
 
                         row = excel.get_table_loc(tbl)[0] + 3
                         f_size = 0
                     elif (wksheet_name is not None):
-                        if (compiler == 'rvgcc'):
-                            # print("New function: " + func_name)
-                            wksheet = function_xlsx.create_sheet(func_name,
-                                                                 wksheet_name)
-                            function_xlsx.record_func_name(wksheet, func_name)
-                            # Place instruction data starting below the headers
-                            row = excel.get_table_loc(RVGCC_TABLE)[0] + 3
-                        elif (compiler == 'IAR'):
-                            wksheet = excel.wkbook.get_worksheet_by_name(wksheet_name)
-                            row = excel.get_table_loc(IAR_TABLE)[0] + 3
+                        wksheet = function_xlsx.create_sheet(func_name,
+                                                             wksheet_name)
+                        function_xlsx.record_func_name(wksheet, func_name)
+                        # Place instruction data starting below the headers
+                        row = excel.get_table_loc(RVGCC_TABLE)[0] + 3
                         # Reset current function totals
                         f_size = 0
                         f_reductions = {}
@@ -282,8 +259,8 @@ def scan_riscv_file(compiler, assemblyfile, optfile):
                                 if (instr_lbl == lbl):
                                     f_formats[lbl][instr] = 0
                         # Add entry for new function with default values
-                        results[func_name] = (f_size, f_reductions, f_instr, f_formats,
-                                              f_bits)
+                        results[func_name] = (f_size, f_reductions, f_instr,
+                                              f_formats, f_bits)
                         # Reset offset trackers
                         lwpc_fail = False
                         max_offset = 0
@@ -291,13 +268,15 @@ def scan_riscv_file(compiler, assemblyfile, optfile):
                     last_saved = False
                     parsing = True
                     continue
-                # a subfunction of the previous function
+                # Beginning to analyze a subfunction of the current function
                 elif parse and subfunc:
                     parsing = True
                     continue
+                # Beginning a function that is not selected to analyze
                 else:
                     parsing = False
                     continue
+            # Analyzing the current line (part of a selected function)
             if parsing:
                 if parse_rules.is_skippable(line):
                     continue
@@ -308,7 +287,7 @@ def scan_riscv_file(compiler, assemblyfile, optfile):
                     # Explicitly mark RVC instructions for readability
                     if (bytes == 2):
                         opcode = 'c.' + opcode
-                    # RVGCC does not differentiate these sub-types
+                    # GCC does not differentiate these sub-types
                     if (opcode == 'c.addi'):
                         if (args[1] == 'sp'):
                             if args[0] == 'sp':
@@ -325,39 +304,23 @@ def scan_riscv_file(compiler, assemblyfile, optfile):
                         opcode = 'c.lwsp'
                         idx = args[1].index('(')
                         args = [args[0], args[1][:idx]]
-                    # __riscv_save and __riscv_restore functions are unique
-                    if (wksheet_name == '__riscv_save') \
-                            or (wksheet_name == '__riscv_restore'):
-                        save_restore_xlsx.record_instruction(wksheet, compiler,
-                                                             tbl, row, addr,
-                                                             instr, opcode,
-                                                             args, comments)
-                    else:
-                        function_xlsx.record_instruction(wksheet, compiler,
-                                                         row, addr, instr,
-                                                         opcode, args,
-                                                         comments)
-                elif (compiler == 'IAR'):
+                elif (compiler == 'rviar'):
                     ret = parse_rules.scan_iar_instruction(line)
                     (addr, instr, bytes, opcode, args) = ret
-                    # __riscv_save and __riscv_restore functions are unique
-                    if (wksheet_name == '__riscv_save') \
-                            or (wksheet_name == '__riscv_restore'):
-                        save_restore_xlsx.record_instruction(wksheet, compiler,
-                                                             tbl, row, addr,
-                                                             instr, opcode,
-                                                             args, '')
-                    else:
-                        function_xlsx.record_instruction(wksheet, compiler,
-                                                         row, addr, instr,
-                                                         opcode, args, '')
-                    comments = None
+                    comments = ''
+                # __riscv_save and __riscv_restore functions are unique
+                if (wksheet_name == '__riscv_save') \
+                        or (wksheet_name == '__riscv_restore'):
+                    save_restore_xlsx.record_instruction(wksheet, compiler,
+                                                         tbl, row, addr, instr,
+                                                         opcode, args, comments)
+                else:
+                    function_xlsx.record_instruction(wksheet, compiler,
+                                                     row, addr, instr, opcode,
+                                                     args, comments)
+
                 # Increment function code size by this instruction size
                 f_size += bytes
-                # if (bytes > 2):
-                #     data1 += 1
-                # else:
-                #     data0 += 1
 
                 # Parse for replaceable instructions
                 if (wksheet_name != '__riscv_save') \
@@ -365,16 +328,16 @@ def scan_riscv_file(compiler, assemblyfile, optfile):
                     replaceable = False
                     # 32-bit instruction
                     if (bytes > 2):
-                        # increment appropriate instruction format label
+                        # Increment appropriate instruction format label
                         instr_type = RV32_INSTR_FORMATS[opcode]
                         if (instr_type[0] not in RV32_FORMATS):
-                            # pseudoinstruction, get label of base instruction
+                            # Pseudoinstruction, get label of base instruction
                             for i in range(len(instr_type)):
                                 lbl = RV32_INSTR_FORMATS[instr_type[i]][0]
                                 f_formats[lbl][instr_type[i]] += 1
                         else:
                             f_formats[instr_type[0]][opcode] += 1
-                        # check if replaceable
+                        # Check if replaceable
                         res = cx.check_replaceable(opcode, args, comments,
                                                    max_offset, min_offset,
                                                    addr)
@@ -385,7 +348,7 @@ def scan_riscv_file(compiler, assemblyfile, optfile):
                         # Record reduction in func_reductions and write comment
                         if (replaceable):
                             opcode = type_code
-                            # replacement by 16-bit instruction
+                            # Replacement by 16-bit instruction
                             if (opcode[:2] == 'c.') or (opcode[:2] == 'cx'):
                                 f_reductions[opcode] += 2
                             function_xlsx.record_comments(wksheet, compiler,
@@ -402,7 +365,7 @@ def scan_riscv_file(compiler, assemblyfile, optfile):
                     else:
                         # C.ADDI is unique since we are proposing to remove it
                         if (opcode == 'c.addi') and (addi_subi_en):
-                            if (compiler == 'IAR'):
+                            if (compiler == 'rviar'):
                                 args = [args[0], args[0], args[1]]
                             res = cx.check_replaceable('c.addi', args,
                                                        comments,
@@ -442,174 +405,102 @@ def scan_riscv_file(compiler, assemblyfile, optfile):
                 prev_op = opcode
                 prev_args = args
 
-                # if ((opcode == 'c.addi') or (opcode == 'addi')) \
-                #         and (compiler == 'RVGCC'):
-                #     num = int(args[-1])
-                #     if (num <= -256):
-                #         data0 += 1
-                #     elif (num <= -32):
-                #         data1 += 1
-                #     elif (num < 0):
-                #         data2 += 1
-                #     elif (num < 32):
-                #         data3 += 1
-                #     elif (num < 256):
-                #         data4 += 1
-                #     else:
-                #         data5 += 1
+                if ((opcode == 'c.addi') or (opcode == 'addi')) \
+                        and (compiler == 'rvgcc') and addioffsetcnt_en:
+                    num = int(args[-1])
+                    if (num <= -256):
+                        addioffset[0] += 1
+                    elif (num <= -32):
+                        addioffset[1] += 1
+                    elif (num < 0):
+                        addioffset[2] += 1
+                    elif (num < 32):
+                        addioffset[3] += 1
+                    elif (num < 256):
+                        addioffset[4] += 1
+                    else:
+                        addioffset[5] += 1
 
-                # if (opcode == 'addi'):
+                # if (opcode == 'addi') and addioffsetcnt_en:
                 #     reg1 = args[0]
                 #     reg2 = args[1]
                 #     immed = abs(int(args[2], 16))
                 #     if (reg1 != reg2) and (immed >= 32):
-                #         data2 += 1
+                #         addioffset[2] += 1
                 #     elif (reg1 != reg2):
-                #         data0 += 1
+                #         addioffset[0] += 1
                 #     elif (immed >= 32):
-                #         data1 += 1
+                #         addioffset[1] += 1
                 #     else:
-                #         data4 += 1
+                #         addioffset[4] += 1
                 #     print(func_name)
                 #     print(args)
 
-                # if (opcode == 'lw'):
-                #     # IMPORTANT: Must also uncomment data3 line in S_FUNC_END
-                #     reg1 = args[0]
-                #     reg2 = args[1].split('(')[1][:-1]
-                #     off = int(args[1].split('(')[0], 16)
-                #     regs_okay = (reg1 in REG_LIST) and (reg2 in REG_LIST)
-                #     off_okay = (abs(off) < 128) and (off >= 0)
-                #     if (regs_okay is False) and (off_okay is False):
-                #         data4 += 1
-                #     if (regs_okay is True) and (off_okay is False):
-                #         if (abs(off) >= 128) and (off > 0):
-                #             data1 += 1
-                #         if (abs(off) < 128) and (off < 0):
-                #             data2 += 1
-                #         if (abs(off) >= 128) and (off < 0):
-                #             data3 += 1
-                #     if (regs_okay is False) and (off_okay is True):
-                #         if (reg1 not in REG_LIST) or (reg2 not in REG_LIST):
-                #             data0 += 1
-                # elif (opcode == 'cx.lwpc'):
-                #     data5 += 1
+                if (opcode == 'lw') and lwcnt_en:
+                    reg1 = args[0]
+                    reg2 = args[1].split('(')[1][:-1]
+                    off = int(args[1].split('(')[0], 16)
+                    regs_okay = (reg1 in REG_LIST) and (reg2 in REG_LIST)
+                    off_okay = (abs(off) < 128) and (off >= 0)
+                    if (regs_okay is False) and (off_okay is False):
+                        lwcnt[4] += 1
+                    if (regs_okay is True) and (off_okay is False):
+                        if (abs(off) >= 128) and (off > 0):
+                            lwcnt[1] += 1
+                        if (abs(off) < 128) and (off < 0):
+                            lwcnt[2] += 1
+                        if (abs(off) >= 128) and (off < 0):
+                            lwcnt[3] += 1
+                    if (regs_okay is False) and (off_okay is True):
+                        if (reg1 not in REG_LIST) or (reg2 not in REG_LIST):
+                            lwcnt[0] += 1
+                elif (opcode == 'cx.lwpc'):
+                    lwcnt[5] += 1
 
-                # if (opcode == 'slli'):
-                #     rd = args[0]
-                #     rs1 = args[1]
-                #     if (rd != rs1):
-                #         data4 += 1
-                #     if (rd in REG_LIST) and (rs1 not in REG_LIST):
-                #         data0 += 1
-                #     if (rs1 in REG_LIST) and (rd not in REG_LIST):
-                #         data1 += 1
-                #     if (rd in REG_LIST) and (rs1 in REG_LIST):
-                #         data2 += 1
-                #     if (rd not in REG_LIST) and (rs1 not in REG_LIST):
-                #         data3 += 1
+                if (opcode == 'slli') and sllicnt_en:
+                    rd = args[0]
+                    rs1 = args[1]
+                    if (rd != rs1):
+                        sllicnt[4] += 1
+                    if (rd in REG_LIST) and (rs1 not in REG_LIST):
+                        sllicnt[0] += 1
+                    if (rs1 in REG_LIST) and (rd not in REG_LIST):
+                        sllicnt[1] += 1
+                    if (rd in REG_LIST) and (rs1 in REG_LIST):
+                        sllicnt[2] += 1
+                    if (rd not in REG_LIST) and (rs1 not in REG_LIST):
+                        sllicnt[3] += 1
 
-                # if (opcode == 'jal'):
-                #     print(args)
-                #     print(int(args[1], 16) - int(addr, 16))
-
-                # if (opcode == 'add'):
-                #     data0 += 1
-                #     rd = args[0]
-                #     rs1 = args[1]
-                #     if (rd != rs1):
-                #         data1 += 1
-                #     else:
-                #         print(args)
-                # if (opcode == 'sub'):
-                #     data0 += 1
-                #     rd = args[0]
-                #     rs1 = args[1]
-                #     rs2 = args[2]
-                #     if (rd != rs1) and ((rd not in REG_LIST) or
-                #                         (rs1 not in REG_LIST) or
-                #                         (rs2 not in REG_LIST)):
-                #         data1 += 1
-                #     elif (rd != rs1):
-                #         data2 += 1
-                #     elif (rd not in REG_LIST) or (rs1 not in REG_LIST) or \
-                #             (rs2 not in REG_LIST):
-                #         data3 += 1
-                #     else:
-                #         data4 += 1
-
-                # if (line.find('__riscv_save') != -1):
-                #     if (line.find('__riscv_save_12') != -1):
-                #         data12 += 1
-                #     elif (line.find('__riscv_save_11') != -1):
-                #         data11 += 1
-                #     elif (line.find('__riscv_save_10') != -1):
-                #         data10 += 1
-                #     elif (line.find('__riscv_save_9') != -1):
-                #         data9 += 1
-                #     elif (line.find('__riscv_save_8') != -1):
-                #         data8 += 1
-                #     elif (line.find('__riscv_save_7') != -1):
-                #         data7 += 1
-                #     elif (line.find('__riscv_save_6') != -1):
-                #         data6 += 1
-                #     elif (line.find('__riscv_save_5') != -1):
-                #         data5 += 1
-                #     elif (line.find('__riscv_save_4') != -1):
-                #         data4 += 1
-                #     elif (line.find('__riscv_save_3') != -1):
-                #         data3 += 1
-                #     elif (line.find('__riscv_save_2') != -1):
-                #         data2 += 1
-                #     elif (line.find('__riscv_save_1') != -1):
-                #         data1 += 1
-                #     elif (line.find('__riscv_save_0') != -1):
-                #         data0 += 1
-                #     else:
-                #         print(line)
-
-                # if (line.find('__riscv_restore') != -1):
-                #     if (line.find('__riscv_restore_12') != -1):
-                #         data12 += 1
-                #     elif (line.find('__riscv_restore_11') != -1):
-                #         data11 += 1
-                #     elif (line.find('__riscv_restore_10') != -1):
-                #         data10 += 1
-                #     elif (line.find('__riscv_restore_9') != -1):
-                #         data9 += 1
-                #     elif (line.find('__riscv_restore_8') != -1):
-                #         data8 += 1
-                #     elif (line.find('__riscv_restore_7') != -1):
-                #         data7 += 1
-                #     elif (line.find('__riscv_restore_6') != -1):
-                #         data6 += 1
-                #     elif (line.find('__riscv_restore_5') != -1):
-                #         data5 += 1
-                #     elif (line.find('__riscv_restore_4') != -1):
-                #         data4 += 1
-                #     elif (line.find('__riscv_restore_3') != -1):
-                #         data3 += 1
-                #     elif (line.find('__riscv_restore_2') != -1):
-                #         data2 += 1
-                #     elif (line.find('__riscv_restore_1') != -1):
-                #         data1 += 1
-                #     elif (line.find('__riscv_restore_0') != -1):
-                #         data0 += 1
-                #     else:
-                #         print(line)
+                if (opcode == 'sub') and subcnt_en:
+                    subcnt[0] += 1
+                    rd = args[0]
+                    rs1 = args[1]
+                    rs2 = args[2]
+                    if (rd != rs1) and ((rd not in REG_LIST) or
+                                        (rs1 not in REG_LIST) or
+                                        (rs2 not in REG_LIST)):
+                        subcnt[1] += 1
+                    elif (rd != rs1):
+                        subcnt[2] += 1
+                    elif (rd not in REG_LIST) or (rs1 not in REG_LIST) or \
+                            (rs2 not in REG_LIST):
+                        subcnt[3] += 1
+                    else:
+                        subcnt[4] += 1
 
                 # Move to next row of worksheet for next instruction
                 row += 1
                 continue
 
+    # Check that the last selected function's totals were saved to the wksheet
     if not last_saved:
         if (wksheet_name == '__riscv_save'):
-            # increment total for save_0, save_1, etc.
+            # Increment total for save_0, save_1, etc.
             if (f_size > 0):
                 curr = results['__riscv_save'][0]
                 results['__riscv_save'] = (curr + f_size, {}, {}, {}, 0)
         elif (wksheet_name == '__riscv_restore'):
-            # increment total for restore_0, restore_1, etc.
+            # Increment total for restore_0, restore_1, etc.
             if (f_size > 0):
                 curr = results['__riscv_restore'][0]
                 results['__riscv_restore'] = (curr + f_size, {}, {}, {}, 0)
@@ -620,10 +511,10 @@ def scan_riscv_file(compiler, assemblyfile, optfile):
                                                              f_reductions,
                                                              max_offset,
                                                              min_offset)
-                # if number of bits too high, not able to us cx.lwpc
+                # If number of bits too high, not able to us cx.lwpc
                 if (res is False):
                     f_reductions['cx.lwpc'] = 0
-                    # revert back to original 32-bit LW
+                    # Revert back to original 32-bit LW
                     if 'lw' in f_instr.keys():
                         f_instr['lw'] += f_instr['cx.lwpc']
                     else:
@@ -705,20 +596,37 @@ def scan_riscv_file(compiler, assemblyfile, optfile):
                              results['__riscv_restore'][1], {}, {}, {})
             (t_reductions, t_pairs, t_instr, t_formats) = res
 
-    # print("{:<30s}{:<5d}".format(compiler + " data0", data0))
-    # print("{:<30s}{:<5d}".format(compiler + " data1", data1))
-    # print("{:<30s}{:<5d}".format(compiler + " data2", data2))
-    # print("{:<30s}{:<5d}".format(compiler + " data3", data3))
-    # print("{:<30s}{:<5d}".format(compiler + " data4", data4))
-    # print("{:<30s}{:<5d}".format(compiler + " data5", data5))
-    # print("{:<30s}{:<5d}".format(compiler + " data6", data6))
-    # print("{:<30s}{:<5d}".format(compiler + " data7", data7))
-    # print("{:<30s}{:<5d}".format(compiler + " data8", data8))
-    # print("{:<30s}{:<5d}".format(compiler + " data9", data9))
-    # print("{:<30s}{:<5d}".format(compiler + " data10", data10))
-    # print("{:<30s}{:<5d}".format(compiler + " data11", data11))
-    # print("{:<30s}{:<5d}".format(compiler + " data12", data12))
-    # print()
+
+    if addioffsetcnt_en:
+        print("\naddi offset counters:\n")
+        print("{:<30s}{:<5d}".format(compiler + " data0", addioffset[0]))
+        print("{:<30s}{:<5d}".format(compiler + " data1", addioffset[1]))
+        print("{:<30s}{:<5d}".format(compiler + " data2", addioffset[2]))
+        print("{:<30s}{:<5d}".format(compiler + " data3", addioffset[3]))
+        print("{:<30s}{:<5d}".format(compiler + " data4", addioffset[4]))
+        print("{:<30s}{:<5d}".format(compiler + " data5", addioffset[5]))
+    if lwcnt_en:
+        print("\nlw counters:\n")
+        print("{:<30s}{:<5d}".format(compiler + " data0", lwcnt[0]))
+        print("{:<30s}{:<5d}".format(compiler + " data1", lwcnt[1]))
+        print("{:<30s}{:<5d}".format(compiler + " data2", lwcnt[2]))
+        print("{:<30s}{:<5d}".format(compiler + " data3", lwcnt[3]))
+        print("{:<30s}{:<5d}".format(compiler + " data4", lwcnt[4]))
+        print("{:<30s}{:<5d}".format(compiler + " data5", lwcnt[5]))
+    if sllicnt_en:
+        print("\nslli counters:\n")
+        print("{:<30s}{:<5d}".format(compiler + " data0", sllicnt[0]))
+        print("{:<30s}{:<5d}".format(compiler + " data1", sllicnt[1]))
+        print("{:<30s}{:<5d}".format(compiler + " data2", sllicnt[2]))
+        print("{:<30s}{:<5d}".format(compiler + " data3", sllicnt[3]))
+        print("{:<30s}{:<5d}".format(compiler + " data4", sllicnt[4]))
+    if subcnt_en:
+        print("\nsub counters:\n")
+        print("{:<30s}{:<5d}".format(compiler + " data0", subcnt[0]))
+        print("{:<30s}{:<5d}".format(compiler + " data1", subcnt[1]))
+        print("{:<30s}{:<5d}".format(compiler + " data2", subcnt[2]))
+        print("{:<30s}{:<5d}".format(compiler + " data3", subcnt[3]))
+        print("{:<30s}{:<5d}".format(compiler + " data4", subcnt[4]))
 
     r = (results, t_reductions, t_pairs, t_instr, t_formats)
     return r
@@ -727,6 +635,11 @@ def scan_riscv_file(compiler, assemblyfile, optfile):
 def scan_riscv_file_data(compiler, assemblyfile, optfile):
     """
     Opens and scans the RISC-V disassembly file to extract data.
+
+    Arguments:
+        - compiler          RISC-V toolchain used to compile the benchmark
+        - assemblyfile      RISC-V disassembly file
+        - optfile           RISC-V config file; selects the functions to parse
 
     Function-Level Data Structures:
         - f_size: function size (in bytes)
@@ -765,15 +678,10 @@ def scan_riscv_file_data(compiler, assemblyfile, optfile):
 
     Returns: (results, t_reductions, t_pairs, t_instr, t_formats)
     """
-
-    optflag = os.path.exists(optfile)
-    if not optflag:
-        config.create_config(compiler, assemblyfile, optfile)
-        print('New function selection file(s) created. Please verify:')
-        print('\t', optfile)
-        exit(0)
+    # Read the config file to know which functions to analyze
     func_opts = config.read_config(optfile)
 
+    # Check that at least one function has been selected for analysis
     funcs_to_parse = [func_opts[i][0] for i in func_opts.keys() if func_opts[i][1]]
     if len(funcs_to_parse) == 0:
         raise Exception('Please select at least one function to parse in ' + optfile)
@@ -796,30 +704,31 @@ def scan_riscv_file_data(compiler, assemblyfile, optfile):
             if (instr_lbl == lbl):
                 t_formats[lbl][instr] = 0
 
+    # Configure the parser
     parse_rules = ParseRules(compiler)
 
     parsing = False
     last_saved = False
-    fcnt = 0
+    fcnt = 0    # function index
     with open(assemblyfile, 'r') as f:
         for line in f:
-            # found the start of a new function
+            # Found the start of a new function
             if parse_rules.is_func_start(line):
                 (fname, wname) = parse_rules.get_func_data(line)
                 nm, parse, subfunc = func_opts[fcnt]
                 fcnt += 1
                 if nm != fname:
                     raise Exception('Error: function name does not match func_opts record')
-                # done w/current if new function is not a subfunction or not set
-                # to parse
+                # Done w/analysis of current function if the new function is not
+                #   a subfunction or not set to parse
                 if parsing and (not subfunc or not parse):
                     if (wksheet_name == '__riscv_save'):
-                        # increment total for save_0, save_1, etc.
+                        # Increment total for save_0, save_1, etc.
                         if (f_size > 0):
                             curr = results['__riscv_save'][0]
                             results['__riscv_save'] = (curr + f_size, {}, {}, {}, 0)
                     elif (wksheet_name == '__riscv_restore'):
-                        # increment total for restore_0, restore_1, etc.
+                        # Increment total for restore_0, restore_1, etc.
                         if (f_size > 0):
                             curr = results['__riscv_restore'][0]
                             results['__riscv_restore'] = (curr + f_size, {}, {}, {}, 0)
@@ -830,10 +739,10 @@ def scan_riscv_file_data(compiler, assemblyfile, optfile):
                                                                          f_reductions,
                                                                          max_offset,
                                                                          min_offset)
-                            # if number of bits too high, not able to us cx.lwpc
+                            # If number of bits too high, not able to us cx.lwpc
                             if (res is False):
                                 f_reductions['cx.lwpc'] = 0
-                                # revert back to original 32-bit LW
+                                # Revert back to original 32-bit LW
                                 if 'lw' in f_instr.keys():
                                     f_instr['lw'] += f_instr['cx.lwpc']
                                 else:
@@ -850,17 +759,12 @@ def scan_riscv_file_data(compiler, assemblyfile, optfile):
                         results[func_name] = (f_size, f_reductions, f_instr, f_formats,
                                               f_bits)
                     last_saved = True
-                # a new function to parse and not a subfunction
+                # Beginning a new function to analyze and not a subfunction
                 if parse and not subfunc:
                     # Create and format new worksheet
                     (func_name, wksheet_name) = parse_rules.get_func_data(line)
-                    if (wksheet_name == '__riscv_save'):
+                    if (wksheet_name == '__riscv_save') or (wksheet_name == '__riscv_restore'):
                         f_size = 0
-                        state = S_FUNC_PARSE
-                        continue
-                    elif (wksheet_name == '__riscv_restore'):
-                        f_size = 0
-                        state = S_FUNC_PARSE
                         continue
                     elif (wksheet_name is not None):
                         # Reset current function totals
@@ -888,8 +792,8 @@ def scan_riscv_file_data(compiler, assemblyfile, optfile):
                                 if (instr_lbl == lbl):
                                     f_formats[lbl][instr] = 0
                         # Add entry for new function with default values
-                        results[func_name] = (f_size, f_reductions, f_instr, f_formats,
-                                              f_bits)
+                        results[func_name] = (f_size, f_reductions, f_instr,
+                                              f_formats, f_bits)
                         # Reset offset trackers
                         lwpc_fail = False
                         max_offset = 0
@@ -897,13 +801,15 @@ def scan_riscv_file_data(compiler, assemblyfile, optfile):
                     last_saved = False
                     parsing = True
                     continue
-                # a subfunction of the previous function
+                # Beginning to analyze a subfunction of the current function
                 elif parse and subfunc:
                     parsing = True
                     continue
+                # Beginning a function that is not selected to analyze
                 else:
                     parsing = False
                     continue
+            # Analyzing the current line (part of a selected function)
             if parsing:
                 if parse_rules.is_skippable(line):
                     continue
@@ -914,7 +820,7 @@ def scan_riscv_file_data(compiler, assemblyfile, optfile):
                     # Explicitly mark RVC instructions for readability
                     if (bytes == 2):
                         opcode = 'c.' + opcode
-                    # RVGCC does not differentiate these sub-types
+                    # GCC does not differentiate these sub-types
                     if (opcode == 'c.addi'):
                         if (args[1] == 'sp'):
                             if args[0] == 'sp':
@@ -944,16 +850,16 @@ def scan_riscv_file_data(compiler, assemblyfile, optfile):
                     replaceable = False
                     # 32-bit instruction
                     if (bytes > 2):
-                        # increment appropriate instruction format label
+                        # Increment appropriate instruction format label
                         instr_type = RV32_INSTR_FORMATS[opcode]
                         if (instr_type[0] not in RV32_FORMATS):
-                            # pseudoinstruction, get label of base instruction
+                            # Pseudoinstruction, get label of base instruction
                             for i in range(len(instr_type)):
                                 lbl = RV32_INSTR_FORMATS[instr_type[i]][0]
                                 f_formats[lbl][instr_type[i]] += 1
                         else:
                             f_formats[instr_type[0]][opcode] += 1
-                        # check if replaceable
+                        # Check if replaceable
                         res = cx.check_replaceable(opcode, args, comments,
                                                    max_offset, min_offset,
                                                    addr)
@@ -964,7 +870,7 @@ def scan_riscv_file_data(compiler, assemblyfile, optfile):
                         # Record reduction in func_reductions and write comment
                         if (replaceable):
                             opcode = type_code
-                            # replacement by 16-bit instruction
+                            # Replacement by 16-bit instruction
                             if (opcode[:2] == 'c.') or (opcode[:2] == 'cx'):
                                 f_reductions[opcode] += 2
                             f_instr[opcode] += 1
@@ -1006,6 +912,7 @@ def scan_riscv_file_data(compiler, assemblyfile, optfile):
                 prev_args = args
                 continue
 
+    # Check that the last selected function's totals were saved to the wksheet
     if not last_saved:
         if (wksheet_name == '__riscv_save'):
             # increment total for save_0, save_1, etc.
