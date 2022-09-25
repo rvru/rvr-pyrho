@@ -1,0 +1,9 @@
+#!/bin/sh
+
+file=$0
+tool=`basename $file`
+fullpath=`readlink -f $file`
+filepath=`dirname $fullpath`
+
+# bin/../pyrho/main.py [arguments]
+python3 $filepath/../pyrho/main.py $@

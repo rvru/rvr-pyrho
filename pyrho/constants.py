@@ -4,16 +4,14 @@ Program Constants
 
 This file defines all of the constant variables used throughout the program.
 
-Author: Jennifer Hellar (jennifer.hellar@rice.edu)
+Author: Jennifer Hellar
 
 """
-SOURCES = ['hydra']
-BENCHMARKS = ['WatermanBenchmark', 'fir_filter',
+BENCHMARKS = ['fir_filter', 'waterman',
     'aha_mont64', 'crc32', 'cubic', 'edn', 'huffbench', 'matmult_int',
     'minver', 'nbody', 'nettle_aes', 'nettle_sha256', 'nsichneu', 'picojpeg',
     'qrduino', 'sglib_combined', 'slre', 'st', 'statemate', 'ud', 'wikisort']
-
-IAR = False
+BUILDS = ['rvgcc', 'armcc', 'armclang', 'armgcc']
 
 """ Enable Desired Compact Instructions """
 lwpc_en = ('cx.lwpc', True)
@@ -34,7 +32,7 @@ subi5 = ('cx.subi5', addi_subi_en)
 
 slli_en = ('cx.slli', True)
 
-branches_en = True
+branches_en = False
 BR_KEEP = 0.9
 bne_en = ('cx.bne', branches_en)
 blt_en = ('cx.blt', branches_en)
@@ -48,7 +46,7 @@ shzero_en = ('cx.shzero', str_zero_en)
 sbzero_en = ('cx.sbzero', str_zero_en)
 
 # NOTE: j_jal_en and save_restore_en cannot both be True
-j_jal_en = True
+j_jal_en = False
 j_en = ('c.j (restore)', j_jal_en)
 jal_en = ('c.jal (save)', j_jal_en)
 
@@ -92,16 +90,6 @@ PAIRS_ENABLED = [i[0] for i in pair_en_lst if (i[1] is True)]
 
 # Allowed register list for compact instructions
 REG_LIST = ['s0', 's1', 'a0', 'a1', 'a2', 'a3', 'a4', 'a5']
-
-""" Define states for parsing assembly """
-S_INIT = "STATE: INITIAL"
-S_FIRST = "STATE: FIRST FUNCTION"
-S_FUNC_START = "STATE: NEW FUNCTION"
-S_FUNC_PARSE = "STATE: PARSING"
-S_FUNC_END = "STATE: FUNCTION END"
-S_WAIT = "STATE: WAIT BETWEEN FUNCTIONS"
-S_LAST = "STATE: LAST FUNCTION"
-S_END = "STATE: END"
 
 """ Define Instruction Formats and Mappings """
 
@@ -232,49 +220,32 @@ RV32C_INSTR_FORMATS = {
 # IMPORTANT: All table names must be unique (dictionary keys in excel.py)
 
 # Table titles for the Summary page
-SUMMARY_TOTALS_TABLE = 'Benchmark Performance (RISC-V vs. ARM)'
+SUMMARY_TOTALS_TABLE = 'Benchmark Totals'
 SUMMARY_MAIN_TABLE = 'Function Sizes (bytes)'
 
 SUMMARY_INSTR_TABLE = 'Compressed Extension Reductions'
 SUMMARY_RULES_TABLE = 'Compressed Extension Rules'
 
-SUMMARY_RVGCC_INSTR_TOT_TABLE = 'RVGCC Instructions'
-SUMMARY_IAR_INSTR_TOT_TABLE = 'IAR Instructions'
+SUMMARY_RVGCC_INSTR_TOT_TABLE = 'rvgcc instructions'
 
-SUMMARY_RVGCC_PAIRS_TABLE = 'RVGCC Instruction Pairs'
-SUMMARY_IAR_PAIRS_TABLE = 'IAR Instruction Pairs'
+SUMMARY_RVGCC_PAIRS_TABLE = 'rvgcc instruction pairs'
 
-SUMMARY_RVGCC_OVERSHOOT_TABLE = 'Overshoot (RVGCC - ARM)'
-SUMMARY_IAR_OVERSHOOT_TABLE = 'Overshoot (IAR - ARM)'
+SUMMARY_RVGCC_OVERSHOOT_TABLE = 'Overshoot (rvgcc - ARM)'
 
 # Table titles for the __riscv_save, __riscv_restore pages
-SAVE_IAR_TOTALS_TABLE = 'RISC-V (IAR) Save Totals'
-SAVE_IAR_A_TABLE = 'save_0 - save_3 (IAR)'
-SAVE_IAR_B_TABLE = 'save_4 - save_7 (IAR)'
-SAVE_IAR_C_TABLE = 'save_8 - save_11 (IAR)'
-SAVE_IAR_D_TABLE = 'save_12 (IAR)'
-iar_save_tables = [SAVE_IAR_A_TABLE, SAVE_IAR_B_TABLE, SAVE_IAR_C_TABLE,
-                   SAVE_IAR_D_TABLE]
-SAVE_RVGCC_TOTALS_TABLE = 'RISC-V (RVGCC) Save Totals'
-SAVE_RVGCC_A_TABLE = 'save_0 - save_3 (RVGCC)'
-SAVE_RVGCC_B_TABLE = 'save_4 - save_7 (RVGCC)'
-SAVE_RVGCC_C_TABLE = 'save_8 - save_11 (RVGCC)'
-SAVE_RVGCC_D_TABLE = 'save_12 (RVGCC)'
+SAVE_RVGCC_TOTALS_TABLE = 'RISC-V Save Totals'
+SAVE_RVGCC_A_TABLE = 'save_0 - save_3'
+SAVE_RVGCC_B_TABLE = 'save_4 - save_7'
+SAVE_RVGCC_C_TABLE = 'save_8 - save_11'
+SAVE_RVGCC_D_TABLE = 'save_12'
 rvgcc_save_tables = [SAVE_RVGCC_A_TABLE, SAVE_RVGCC_B_TABLE,
                      SAVE_RVGCC_C_TABLE, SAVE_RVGCC_D_TABLE]
 
-RESTORE_IAR_TOTALS_TABLE = 'RISC-V (IAR) Restore Totals'
-RESTORE_IAR_A_TABLE = 'restore_0 - restore_3 (IAR)'
-RESTORE_IAR_B_TABLE = 'restore_4 - restore_7 (IAR)'
-RESTORE_IAR_C_TABLE = 'restore_8 - restore_11 (IAR)'
-RESTORE_IAR_D_TABLE = 'restore_12 (IAR)'
-iar_restore_tables = [RESTORE_IAR_A_TABLE, RESTORE_IAR_B_TABLE,
-                      RESTORE_IAR_C_TABLE, RESTORE_IAR_D_TABLE]
-RESTORE_RVGCC_TOTALS_TABLE = 'RISC-V (RVGCC) Restore Totals'
-RESTORE_RVGCC_A_TABLE = 'restore_0 - restore_3 (RVGCC)'
-RESTORE_RVGCC_B_TABLE = 'restore_4 - restore_7 (RVGCC)'
-RESTORE_RVGCC_C_TABLE = 'restore_8 - restore_11 (RVGCC)'
-RESTORE_RVGCC_D_TABLE = 'restore_12 (RVGCC)'
+RESTORE_RVGCC_TOTALS_TABLE = 'RISC-V Restore Totals'
+RESTORE_RVGCC_A_TABLE = 'restore_0 - restore_3'
+RESTORE_RVGCC_B_TABLE = 'restore_4 - restore_7'
+RESTORE_RVGCC_C_TABLE = 'restore_8 - restore_11'
+RESTORE_RVGCC_D_TABLE = 'restore_12'
 rvgcc_restore_tables = [RESTORE_RVGCC_A_TABLE, RESTORE_RVGCC_B_TABLE,
                         RESTORE_RVGCC_C_TABLE, RESTORE_RVGCC_D_TABLE]
 
@@ -282,17 +253,12 @@ rvgcc_restore_tables = [RESTORE_RVGCC_A_TABLE, RESTORE_RVGCC_B_TABLE,
 ARM_TOTALS_TABLE = 'ARM M0+ Totals'
 ARM_TABLE = 'ARM M0+'
 
-IAR_TOTALS_TABLE = 'RISC-V (IAR) Totals)'
-IAR_TABLE = 'RISC-V (IAR)'
+RVGCC_TOTALS_TABLE = 'RISC-V Totals'
+RVGCC_TABLE = 'RISC-V'
 
-RVGCC_TOTALS_TABLE = 'RISC-V (GCC) Totals'
-RVGCC_TABLE = 'RISC-V (GCC)'
+RVGCC_BITS_TABLE = 'RISC-V Offset Bits'
 
-RVGCC_BITS_TABLE = 'RVGCC Offset Bits'
-IAR_BITS_TABLE = 'IAR Offset Bits'
-
-RVGCC_INSTR_TABLE = 'RVGCC Instructions'
-IAR_INSTR_TABLE = 'IAR Instructions'
+RVGCC_INSTR_TABLE = 'RISC-V Instructions'
 
 # Create dictionaries for mapping Excel grid (A-BZ columns, 1000 rows):
 #    CELL_NAME: row, col map to cell e.g. (0, 1) --> 'A2'
