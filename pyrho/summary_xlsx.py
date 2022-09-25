@@ -48,10 +48,10 @@ def create_summary(allflag, rvfile=None, armfile=None):
                      7: 15, 8: 15,
                        # Compressed Extension Table
                      9: 40, 10: 20, 11: 20, 12: 20, 13: 20, 14: 20,
-                       # Charts and IAR Instructions/Instruction Pair Tables
-                     15: 40, 16: 20, 17: 30, 18: 20,
+                       # Chart
+                     15: 40, 16: 20,
                        # Compressed Extension Rules Table
-                     19: 40, 20: 80}
+                     17: 40, 18: 80}
     for col in col_sizes:
         wksheet.set_column(col, col, col_sizes[col])
     return wksheet
@@ -286,7 +286,7 @@ def add_replacement_rules_table():
     for instr in ENABLED:
         # Rules applied
         if (instr == 'cx.lwpc'):
-            rule_text = '32-bit LW; rs1 = gp; ' + \
+            rule_text = '32-bit lw; rs1 = gp; ' + \
                 '# Bits to address func + data <= 8; rd in ' + str(REG_LIST)
         elif (instr == 'c.j (restore)') or (instr == 'pop (restore)'):
             rule_text = '32-bit J; __riscv_restore destination'
@@ -311,9 +311,9 @@ def add_replacement_rules_table():
                 rule_text = rule_text + '-32 <= imm < 0; rs1, rd in ' + \
                     str(REG_LIST)
         elif (instr == 'cx.slli'):
-            rule_text = '32-bit SLLI; rs1, rd in ' + str(REG_LIST)
+            rule_text = '32-bit slli; rs1, rd in ' + str(REG_LIST)
         else:
-            rule_text = '32-bit ' + instr[3:5] + '; 0 <= offset < 128'
+            rule_text = '32-bit ' + instr[3:6] + '; 0 <= offset < 128'
             if (instr == 'cx.sb') or (instr == 'cx.sh'):
                 rule_text = rule_text + '; rs1, rs2 in ' + str(REG_LIST)
             elif (instr == 'cx.lbu') or (instr == 'cx.lhu') or \
